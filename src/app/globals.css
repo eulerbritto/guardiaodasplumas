@@ -24,3 +24,118 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+/* src/app/globals.css */
+
+/* ... Mantenha os imports do tailwind lá em cima ... */
+
+/* =========================================
+   TRANSIÇÃO PAVÃO
+========================================= */
+
+.peacock-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+}
+
+/* Cada "pena" */
+.peacock-feather {
+  position: absolute;
+  bottom: -15%;
+  left: 50%;
+  width: 18vw;
+  height: 115vh;
+  transform-origin: 50% 100%;
+  background: radial-gradient(
+    ellipse at 50% 15%,
+    #35d0a0 0%,
+    #087f67 18%,
+    #064c69 40%,
+    #101b4d 65%,
+    #080b20 100%
+  );
+  border-radius: 50% 50% 0 0;
+  box-shadow: inset 0 0 40px rgba(255,255,255,.08), 0 0 30px rgba(0,0,0,.25);
+  transform: translateX(-50%) rotate(0deg) scaleY(0);
+  transition: transform .7s cubic-bezier(.65,0,.35,1);
+}
+
+/* Olho da pena */
+.peacock-feather::after {
+  content: "";
+  position: absolute;
+  width: 100px;
+  height: 140px;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #f4d35e 0 12%,
+    #087f67 13% 30%,
+    #00a8cc 31% 45%,
+    #13204f 46% 65%,
+    transparent 66%
+  );
+  box-shadow: 0 0 20px rgba(0, 200, 255, .35);
+}
+
+/* Posicionamento das penas */
+.feather-1 { transform: translateX(-50%) rotate(-42deg) scaleY(0); }
+.feather-2 { transform: translateX(-50%) rotate(-30deg) scaleY(0); }
+.feather-3 { transform: translateX(-50%) rotate(-18deg) scaleY(0); }
+.feather-4 { transform: translateX(-50%) rotate(-6deg) scaleY(0); }
+.feather-5 { transform: translateX(-50%) rotate(6deg) scaleY(0); }
+.feather-6 { transform: translateX(-50%) rotate(18deg) scaleY(0); }
+.feather-7 { transform: translateX(-50%) rotate(30deg) scaleY(0); }
+.feather-8 { transform: translateX(-50%) rotate(42deg) scaleY(0); }
+
+/* =========================================
+   ABRINDO
+========================================= */
+.peacock-transition.open { opacity: 1; }
+.peacock-transition.open .feather-1 { transform: translateX(-50%) rotate(-42deg) scaleY(1); transition-delay: .00s; }
+.peacock-transition.open .feather-2 { transform: translateX(-50%) rotate(-30deg) scaleY(1); transition-delay: .05s; }
+.peacock-transition.open .feather-3 { transform: translateX(-50%) rotate(-18deg) scaleY(1); transition-delay: .10s; }
+.peacock-transition.open .feather-4 { transform: translateX(-50%) rotate(-6deg) scaleY(1); transition-delay: .15s; }
+.peacock-transition.open .feather-5 { transform: translateX(-50%) rotate(6deg) scaleY(1); transition-delay: .15s; }
+.peacock-transition.open .feather-6 { transform: translateX(-50%) rotate(18deg) scaleY(1); transition-delay: .10s; }
+.peacock-transition.open .feather-7 { transform: translateX(-50%) rotate(30deg) scaleY(1); transition-delay: .05s; }
+.peacock-transition.open .feather-8 { transform: translateX(-50%) rotate(42deg) scaleY(1); transition-delay: .00s; }
+
+/* =========================================
+   FECHANDO
+========================================= */
+.peacock-transition.closing .peacock-feather {
+  transform: translateX(-50%) rotate(0deg) scaleY(0);
+  transition-duration: .65s;
+}
+.peacock-transition.closing { opacity: 1; }
+
+/* =========================================
+   CENTRO DO PAVÃO
+========================================= */
+.peacock-eye {
+  position: absolute;
+  bottom: 30px;
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #fff 0 8%,
+    #00d4ff 9% 25%,
+    #073b8c 26% 55%,
+    #050719 56%
+  );
+  box-shadow: 0 0 25px rgba(0, 200, 255, .8);
+}
