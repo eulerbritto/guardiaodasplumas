@@ -41,10 +41,17 @@ export default function NovoEventoPage() {
 
       if (insertError) throw insertError
 
-      // 2. Se for Saúde e a data for FUTURA (maior que hoje), cria um lembrete automático
+      // 2. Lógica para ÓBITO: Inativa a ave
+      if (formData.event_type === 'DEATH') {
+        await supabase
+          .from('birds')
+          .update({ status: 'INACTIVE' })
+          .eq('id', params.id)
+      }
+
+      // 3. Se for Saúde e a data for FUTURA, cria um lembrete automático
       const today = new Date().toISOString().split('T')[0]
       if (formData.event_type === 'HEALTH' && formData.event_date > today) {
-        // Busca o código e nome da ave para deixar o lembrete identificado
         const { data: birdData } = await supabase
           .from('birds')
           .select('code, name')
@@ -107,6 +114,7 @@ export default function NovoEventoPage() {
               <option value="HEALTH">Saúde / Tratamento / Vacina</option>
               <option value="TRANSFER">Mudança de Recinto / Lote</option>
               <option value="GENERAL">Anotação Geral / Manejo</option>
+              <option value="DEATH">Óbito / Falecimento</option>
             </select>
           </div>
 
@@ -128,7 +136,7 @@ export default function NovoEventoPage() {
               name="description"
               rows={4}
               required
-              placeholder="Descreva o que aconteceu (ex: Aplicar reforço de vacina...)"
+              placeholder="Descreva o que aconteceu..."
               value={formData.description}
               onChange={handleChange}
               className="w-full rounded-xl border-gray-300 border p-3 text-gray-900 focus:ring-2 focus:ring-emerald-600"
