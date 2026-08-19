@@ -4,130 +4,139 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '@/components/ui/BottomNav'
-import { Search, PlusCircle, ChevronRight, Home } from 'lucide-react'
+import { Search, Plus, Bird, MapPin, Feather, ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 
-type Bird = {
-  id: string
-  code: string
-  name: string | null
-  variety: string | null
-  gender: 'MALE' | 'FEMALE' | 'UNKNOWN'
-  species: { name: string } | null
-}
-
-export default function PlantelPage() {
+export default function ListaAvesPage() {
   const supabase = createClient()
-  const [birds, setBirds] = useState<Bird[]>([])
+  const [birds, setBirds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     async function fetchBirds() {
-      const { data, error } = await supabase
+      // Busca todas as aves ativas e traz os nomes da Espécie, Raça e Recinto
+      const { data } = await supabase
         .from('birds')
         .select(`
-          id, code, name, variety, gender,
-          species ( name )
+          id, 
+          name, 
+          code, 
+          gender, 
+          main_photo_url, 
+          species (name), 
+          breeds (name), 
+          recintos (name)
         `)
         .eq('status', 'ACTIVE')
-        .order('code', { ascending: false })
+        .order('created_at', { ascending: false })
 
-      if (data && !error) {
-        setBirds(data as unknown as Bird[])
-      }
+      if (data) setBirds(data)
       setLoading(false)
     }
 
     fetchBirds()
   }, [supabase])
 
+  // Filtra as aves pela barra de pesquisa (busca por nome ou código)
   const filteredBirds = birds.filter(bird => {
-    const search = searchTerm.toLowerCase()
+    const term = searchTerm.toLowerCase()
     return (
-      bird.code.toLowerCase().includes(search) ||
-      (bird.name?.toLowerCase() || '').includes(search) ||
-      (bird.variety?.toLowerCase() || '').includes(search) ||
-      (bird.species?.name.toLowerCase() || '').includes(search)
+      (bird.name && bird.name.toLowerCase().includes(term)) ||
+      (bird.code && bird.code.toLowerCase().includes(term))
     )
   })
 
-  const getGenderBadge = (gender: string) => {
-    if (gender === 'MALE') return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">Macho</span>
-    if (gender === 'FEMALE') return <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded text-xs font-bold">Fêmea</span>
-    return <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-bold">Não Identificado</span>
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Cabeçalho com Botão de Home e Título */}
-      <header className="bg-emerald-600 text-white p-4 sticky top-0 z-10 shadow-sm">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="p-2 bg-emerald-700/60 rounded-full hover:bg-emerald-700 transition" title="Ir para a página inicial">
-              <Home className="w-5 h-5 text-white" />
+    <div className="min-h-screen bg-gray-50 pb-24">
+<header className="bg-white border-b border-gray-200 p-5 sticky top-0 z-10 space-y-4">
+        <div className="flex justify-between items-center">
+          {/* Agrupamento do Botão Voltar + Título */}
+          <div className="flex items-center gap-2">
+            <Link href="/" className="p-2 -ml-2 text-gray-500 hover:text-gray-900 rounded-full hover:bg-gray-100 transition" title="Voltar para o Início">
+              <ChevronLeft className="w-6 h-6" />
             </Link>
-            <h1 className="text-xl font-bold">Meu Plantel</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Meu Plantel</h1>
           </div>
-          <Link href="/novo" className="bg-emerald-700 p-2 rounded-full hover:bg-emerald-800 transition" title="Nova Ave">
-            <PlusCircle className="w-5 h-5" />
+          
+          {/* Botão de Adicionar Nova Ave */}
+          <Link 
+            href="/novo" 
+            className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl transition shadow-sm"
+            title="Adicionar Nova Ave"
+          >
+            <Plus className="w-6 h-6" />
           </Link>
         </div>
-        
+
+        {/* Barra de Pesquisa */}
         <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
+          <Search className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por código, nome, espécie..."
+            placeholder="Buscar por nome ou código..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full pl-10 pr-3 py-3 border-transparent rounded-xl text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-white focus:border-transparent bg-white shadow-sm"
+            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none transition"
           />
         </div>
       </header>
 
-      {/* Lista de Aves */}
-      <main className="p-4">
+      <main className="p-4 max-w-lg mx-auto">
         {loading ? (
-          <div className="text-center py-10 text-gray-500">Carregando aves...</div>
+          <div className="text-center text-gray-800 font-bold py-10 mt-10">Carregando plantel...</div>
         ) : filteredBirds.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-gray-500 mb-4">Nenhuma ave encontrada.</p>
-            {birds.length === 0 && (
-              <Link href="/novo" className="text-emerald-600 font-medium hover:underline">
-                Cadastrar primeira ave
-              </Link>
-            )}
+          <div className="text-center py-10 mt-10 bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <Bird className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-900 font-bold">Nenhuma ave encontrada.</p>
+            <p className="text-gray-500 text-sm mt-1">Que tal adicionar um novo animal?</p>
           </div>
         ) : (
-          <div className="grid gap-3">
-            {filteredBirds.map((bird) => (
-              <Link 
-                key={bird.id} 
-                href={`/aves/${bird.id}`}
-                className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between hover:border-emerald-300 transition-colors active:scale-[0.98]"
-              >
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                      {bird.code}
-                    </span>
-                    {getGenderBadge(bird.gender)}
+          <div className="space-y-3">
+            {filteredBirds.map(bird => (
+              <Link key={bird.id} href={`/aves/${bird.id}`} className="block">
+                <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 hover:border-emerald-300 transition active:scale-[0.98]">
+                  
+                  {/* Foto da Ave */}
+                  <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0 overflow-hidden border border-gray-200">
+                    {bird.main_photo_url ? (
+                      <img src={bird.main_photo_url} alt={bird.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <Bird className="w-8 h-8" />
+                      </div>
+                    )}
                   </div>
-                  
-                  <h2 className="text-lg font-bold text-gray-800 mt-1">
-                    {bird.name || 'Sem nome'}
-                  </h2>
-                  
-                  <p className="text-sm text-gray-600">
-                    {bird.species?.name} {bird.variety ? `· ${bird.variety}` : ''}
-                  </p>
-                </div>
-                
-                <div className="text-gray-400">
-                  <ChevronRight className="w-5 h-5" />
+
+                  {/* Informações da Ave */}
+                  <div className="flex-1 flex flex-col justify-center">
+                    <div className="flex justify-between items-start mb-1">
+                      <h2 className="text-base font-bold text-gray-900 leading-tight">
+                        {bird.name || 'Sem nome'}
+                      </h2>
+                      <span className="font-mono text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md border border-gray-200">
+                        {bird.code}
+                      </span>
+                    </div>
+
+                    {/* Espécie e Raça */}
+                    <p className="text-xs font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
+                      <Feather className="w-3 h-3" />
+                      {bird.species?.name} {bird.breeds?.name ? `· ${bird.breeds.name}` : ''}
+                    </p>
+
+                    {/* Recinto e Sexo */}
+                    <div className="flex items-center gap-3 mt-2 text-[11px] font-bold text-gray-600">
+                      <span className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
+                        <MapPin className="w-3 h-3 text-blue-600" />
+                        {bird.recintos?.name || 'Não alocado'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        {bird.gender === 'MALE' ? '♂ Macho' : bird.gender === 'FEMALE' ? '♀ Fêmea' : '❓ Indefinido'}
+                      </span>
+                    </div>
+                  </div>
+
                 </div>
               </Link>
             ))}
