@@ -37,9 +37,11 @@ function ListaAvesContent() {
         
         // Extrai espécies únicas para o Dropdown de filtro
         const uniqueSp = new Map()
-        data.forEach(b => {
-          const spId = b.species?.id || 'indef'
-          const spName = b.species?.name || 'Indefinidos'
+        // Adicionando (b: any) para resolver o erro TS2339 da Vercel
+        data.forEach((b: any) => {
+          const sp = b.species as any
+          const spId = sp?.id || 'indef'
+          const spName = sp?.name || 'Indefinidos'
           if (!uniqueSp.has(spId)) uniqueSp.set(spId, { id: spId, name: spName })
         })
         setAvailableSpecies(Array.from(uniqueSp.values()))
@@ -50,58 +52,66 @@ function ListaAvesContent() {
   }, [supabase])
 
   // Lógica de Filtragem (Pesquisa + Dropdown de Espécie)
-  const filteredBirds = birds.filter(bird => {
+  const filteredBirds = birds.filter((bird: any) => {
     const term = searchTerm.toLowerCase()
     const matchesSearch = (bird.name && bird.name.toLowerCase().includes(term)) || 
                           (bird.code && bird.code.toLowerCase().includes(term))
     
-    const spId = bird.species?.id || 'indef'
+    const sp = bird.species as any
+    const spId = sp?.id || 'indef'
     const matchesSpecies = selectedSpecies === 'ALL' || spId === selectedSpecies
 
     return matchesSearch && matchesSpecies
   })
 
-  // Lógica de Agrupamento
-  const groupedBirds = filteredBirds.reduce((acc, bird) => {
-    const recintoName = bird.recintos?.name || 'Não alocado'
+  // Lógica de Agrupamento - Resolvendo o erro TS18046 (typeof birds)
+  const groupedBirds = filteredBirds.reduce((acc: Record<string, any[]>, bird: any) => {
+    const rec = bird.recintos as any
+    const recintoName = rec?.name || 'Não alocado'
     if (!acc[recintoName]) acc[recintoName] = []
     acc[recintoName].push(bird)
     return acc
-  }, {} as Record<string, typeof birds>)
+  }, {})
 
   // Componente de Cartão isolado para não repetir código
-  const BirdCard = ({ bird }: { bird: any }) => (
-    <Link key={bird.id} href={`/aves/${bird.id}`} className="block">
-      <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 hover:border-emerald-300 transition active:scale-[0.98]">
-        <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0 overflow-hidden border border-gray-200">
-          {bird.main_photo_url ? (
-            <img src={bird.main_photo_url} alt={bird.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400"><Bird className="w-8 h-8" /></div>
-          )}
-        </div>
-        <div className="flex-1 flex flex-col justify-center">
-          <div className="flex justify-between items-start mb-1">
-            <h2 className="text-base font-bold text-gray-900 leading-tight">{bird.name || 'Sem nome'}</h2>
-            <span className="font-mono text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md border border-gray-200">{bird.code}</span>
+  const BirdCard = ({ bird }: { bird: any }) => {
+    const sp = bird.species as any
+    const br = bird.breeds as any
+    const rec = bird.recintos as any
+    
+    return (
+      <Link key={bird.id} href={`/aves/${bird.id}`} className="block">
+        <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 hover:border-emerald-300 transition active:scale-[0.98]">
+          <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0 overflow-hidden border border-gray-200">
+            {bird.main_photo_url ? (
+              <img src={bird.main_photo_url} alt={bird.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400"><Bird className="w-8 h-8" /></div>
+            )}
           </div>
-          <p className="text-xs font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
-            <Feather className="w-3 h-3" />
-            {bird.species?.name || 'Indefinida'} {bird.breeds?.name ? `· ${bird.breeds.name}` : ''}
-          </p>
-          <div className="flex items-center gap-3 mt-2 text-[11px] font-bold text-gray-600">
-            <span className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
-              <MapPin className="w-3 h-3 text-blue-600" />
-              {bird.recintos?.name || 'Não alocado'}
-            </span>
-            <span className="flex items-center gap-1">
-              {bird.gender === 'MALE' ? '♂ Macho' : bird.gender === 'FEMALE' ? '♀ Fêmea' : '❓ Indefinido'}
-            </span>
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex justify-between items-start mb-1">
+              <h2 className="text-base font-bold text-gray-900 leading-tight">{bird.name || 'Sem nome'}</h2>
+              <span className="font-mono text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md border border-gray-200">{bird.code}</span>
+            </div>
+            <p className="text-xs font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
+              <Feather className="w-3 h-3" />
+              {sp?.name || 'Indefinida'} {br?.name ? `· ${br.name}` : ''}
+            </p>
+            <div className="flex items-center gap-3 mt-2 text-[11px] font-bold text-gray-600">
+              <span className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
+                <MapPin className="w-3 h-3 text-blue-600" />
+                {rec?.name || 'Não alocado'}
+              </span>
+              <span className="flex items-center gap-1">
+                {bird.gender === 'MALE' ? '♂ Macho' : bird.gender === 'FEMALE' ? '♀ Fêmea' : '❓ Indefinido'}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-    </Link>
-  )
+      </Link>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -166,16 +176,16 @@ function ListaAvesContent() {
           </div>
         ) : (
           groupByRecinto ? (
-            // RENDERIZAÇÃO AGRUPADA
+            // RENDERIZAÇÃO AGRUPADA - Tipagem explícita para evitar o erro TS7006 e TS18046
             <div className="space-y-6">
-              {Object.entries(groupedBirds).map(([recinto, aves]) => (
+              {Object.entries(groupedBirds).map(([recinto, aves]: [string, any[]]) => (
                 <div key={recinto}>
                   <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-1 border-b border-gray-200 pb-2 flex justify-between items-center">
                     <span>{recinto}</span>
                     <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full normal-case">{aves.length} aves</span>
                   </h3>
                   <div className="space-y-3">
-                    {aves.map(bird => <BirdCard key={bird.id} bird={bird} />)}
+                    {aves.map((bird: any) => <BirdCard key={bird.id} bird={bird} />)}
                   </div>
                 </div>
               ))}
@@ -183,7 +193,7 @@ function ListaAvesContent() {
           ) : (
             // RENDERIZAÇÃO LISTA SIMPLES
             <div className="space-y-3">
-              {filteredBirds.map(bird => <BirdCard key={bird.id} bird={bird} />)}
+              {filteredBirds.map((bird: any) => <BirdCard key={bird.id} bird={bird} />)}
             </div>
           )
         )}
@@ -194,7 +204,6 @@ function ListaAvesContent() {
   )
 }
 
-// O Next.js exige o Suspense em volta de componentes que usam leitura da URL (useSearchParams)
 export default function ListaAvesPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-gray-50 p-10 text-center text-gray-800 font-bold">Iniciando...</div>}>
