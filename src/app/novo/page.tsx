@@ -11,7 +11,7 @@ import Link from 'next/link'
 type Species = { id: string; name: string }
 type Breed = { id: string; name: string; species_id: string }
 type Recinto = { id: string; name: string }
-type Bird = { id: string; name: string | null; code: string; species_id: string; gender: string }
+type Bird = { id: string; name: string | null; code: string; species_id: string; gender: string; breed_id?: string }
 
 export default function NovaAvePage() {
   const router = useRouter()
@@ -19,14 +19,17 @@ export default function NovaAvePage() {
   
   const [loading, setLoading] = useState(false)
   const [species, setSpecies] = useState<Species[]>([])
-  const [allBreeds, setAllBreeds] = useState<Breed[]>([]) // Novo estado para as raças
+  const [allBreeds, setAllBreeds] = useState<Breed[]>([]) // Estado para as raças
   const [recintos, setRecintos] = useState<Recinto[]>([])
   const [allBirds, setAllBirds] = useState<Bird[]>([])
   const [error, setError] = useState<string | null>(null)
   
+  // Controle de exibição das raças
+  const [showAllBreeds, setShowAllBreeds] = useState(false)
+  
   const [formData, setFormData] = useState({
     species_id: '',
-    breed_id: '', // NOVO CAMPO: Raça vinculada à espécie
+    breed_id: '',
     recinto_id: '',
     origin_breeder: '',
     father_id: '',
@@ -56,19 +59,37 @@ export default function NovaAvePage() {
       const { data: recintosData } = await supabase.from('recintos').select('*').order('name')
       if (recintosData) setRecintos(recintosData)
 
-      // 4. Carregar lista de aves (com gender)
-      const { data: birdsData } = await supabase.from('birds').select('id, name, code, species_id, gender').eq('status', 'ACTIVE')
+      // 4. Carregar lista de aves (Adicionado o breed_id para o filtro inteligente funcionar)
+      const { data: birdsData } = await supabase.from('birds').select('id, name, code, species_id, gender, breed_id').eq('status', 'ACTIVE')
       if (birdsData) setAllBirds(birdsData)
     }
     loadInitialData()
   }, [supabase])
 
-  // Lógica Reativa: Filtrar Raças e Pais dependendo da Espécie escolhida
-  const availableBreeds = allBreeds.filter(b => b.species_id === formData.species_id)
-  const potentialParents = allBirds.filter(b => b.species_id === formData.species_id)
+  // ==========================================
+  // LÓGICA INTELIGENTE DE FILTRAGEM
+  // ==========================================
   
+  // 1. Raças
+  const availableBreeds = allBreeds.filter(b => b.species_id === formData.species_id)
+  
+  // Descobre quais raças já estão em uso no plantel
+  const usedBreedIds = new Set(allBirds.map(b => b.breed_id).filter(Boolean))
+  const usedBreeds = availableBreeds.filter(b => usedBreedIds.has(b.id))
+  
+  const otherBreedsCount = availableBreeds.length - usedBreeds.length
+
+  // Define se mostra tudo ou só as mais usadas
+  const displayedBreeds = (showAllBreeds || usedBreeds.length === 0) 
+    ? availableBreeds 
+    : usedBreeds
+
+  // 2. Pais
+  const potentialParents = allBirds.filter(b => b.species_id === formData.species_id)
   const potentialFathers = potentialParents.filter(b => b.gender !== 'FEMALE')
   const potentialMothers = potentialParents.filter(b => b.gender !== 'MALE')
+
+  // ==========================================
 
   const getSpeciesPrefix = (speciesName: string) => {
     const name = speciesName.toLowerCase()
@@ -103,12 +124,11 @@ export default function NovaAvePage() {
       const nextNumber = (count || 0) + 1
       const generatedCode = `${prefix}-${String(nextNumber).padStart(6, '0')}`
 
-      // Salva no banco vinculando o breed_id (Raça)
       const { error: insertError } = await supabase.from('birds').insert({
         user_id: user.id,
         code: generatedCode,
         species_id: formData.species_id,
-        breed_id: formData.breed_id || null, // Enviando a Raça
+        breed_id: formData.breed_id || null, 
         recinto_id: formData.recinto_id || null,
         origin_breeder: formData.origin_breeder || null,
         father_id: formData.father_id || null,
@@ -137,9 +157,13 @@ export default function NovaAvePage() {
     setFormData(prev => ({ 
       ...prev, 
       [name]: value,
-      // Se a pessoa trocar a Espécie, limpamos a Raça para evitar inconsistência
       ...(name === 'species_id' ? { breed_id: '' } : {})
     }))
+
+    // Se trocou a espécie, volta a esconder a lista longa de raças
+    if (name === 'species_id') {
+      setShowAllBreeds(false)
+    }
   }
 
   return (
@@ -220,15 +244,31 @@ export default function NovaAvePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              {/* O NOVO CAMPO DE RAÇA EM FORMATO SELECT */}
+              {/* O NOVO CAMPO DE RAÇA INTELIGENTE */}
               <div>
                 <label className="block text-sm font-bold text-gray-800 mb-1">Raça / Variedade</label>
-                <select name="breed_id" value={formData.breed_id} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none">
-                  <option value="">Nenhuma</option>
-                  {availableBreeds.map(b => (
+                <select 
+                  name="breed_id" 
+                  value={formData.breed_id} 
+                  onChange={handleChange} 
+                  className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none"
+                >
+                  <option value="">Nenhuma / Mestiço</option>
+                  {displayedBreeds.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
+                
+                {/* Botão de carregar as demais raças */}
+                {!showAllBreeds && usedBreeds.length > 0 && otherBreedsCount > 0 && (
+                  <button 
+                    type="button" 
+                    onClick={() => setShowAllBreeds(true)}
+                    className="mt-2 text-xs font-bold text-emerald-600 hover:text-emerald-800 flex items-center transition"
+                  >
+                    + Carregar outras {otherBreedsCount} raças...
+                  </button>
+                )}
               </div>
 
               <div>

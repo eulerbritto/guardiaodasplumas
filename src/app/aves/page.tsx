@@ -1,70 +1,119 @@
 // src/app/aves/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '@/components/ui/BottomNav'
-import { Search, Plus, Bird, MapPin, Feather, ChevronLeft } from 'lucide-react'
+import { Search, Plus, Bird, MapPin, Feather, ChevronLeft, Layers, Filter } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
-export default function ListaAvesPage() {
+function ListaAvesContent() {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const initialSpeciesId = searchParams.get('species_id') || 'ALL'
+
   const [birds, setBirds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  
+  const [selectedSpecies, setSelectedSpecies] = useState(initialSpeciesId)
+  const [groupByRecinto, setGroupByRecinto] = useState(false)
+  const [availableSpecies, setAvailableSpecies] = useState<any[]>([])
 
   useEffect(() => {
     async function fetchBirds() {
-      // Busca todas as aves ativas e traz os nomes da Espécie, Raça e Recinto
       const { data } = await supabase
         .from('birds')
         .select(`
-          id, 
-          name, 
-          code, 
-          gender, 
-          main_photo_url, 
-          species (name), 
-          breeds (name), 
-          recintos (name)
+          id, name, code, gender, main_photo_url, 
+          species (id, name), breeds (name), recintos (name)
         `)
         .eq('status', 'ACTIVE')
         .order('created_at', { ascending: false })
 
-      if (data) setBirds(data)
+      if (data) {
+        setBirds(data)
+        
+        // Extrai espécies únicas para o Dropdown de filtro
+        const uniqueSp = new Map()
+        data.forEach(b => {
+          const spId = b.species?.id || 'indef'
+          const spName = b.species?.name || 'Indefinidos'
+          if (!uniqueSp.has(spId)) uniqueSp.set(spId, { id: spId, name: spName })
+        })
+        setAvailableSpecies(Array.from(uniqueSp.values()))
+      }
       setLoading(false)
     }
-
     fetchBirds()
   }, [supabase])
 
-  // Filtra as aves pela barra de pesquisa (busca por nome ou código)
+  // Lógica de Filtragem (Pesquisa + Dropdown de Espécie)
   const filteredBirds = birds.filter(bird => {
     const term = searchTerm.toLowerCase()
-    return (
-      (bird.name && bird.name.toLowerCase().includes(term)) ||
-      (bird.code && bird.code.toLowerCase().includes(term))
-    )
+    const matchesSearch = (bird.name && bird.name.toLowerCase().includes(term)) || 
+                          (bird.code && bird.code.toLowerCase().includes(term))
+    
+    const spId = bird.species?.id || 'indef'
+    const matchesSpecies = selectedSpecies === 'ALL' || spId === selectedSpecies
+
+    return matchesSearch && matchesSpecies
   })
+
+  // Lógica de Agrupamento
+  const groupedBirds = filteredBirds.reduce((acc, bird) => {
+    const recintoName = bird.recintos?.name || 'Não alocado'
+    if (!acc[recintoName]) acc[recintoName] = []
+    acc[recintoName].push(bird)
+    return acc
+  }, {} as Record<string, typeof birds>)
+
+  // Componente de Cartão isolado para não repetir código
+  const BirdCard = ({ bird }: { bird: any }) => (
+    <Link key={bird.id} href={`/aves/${bird.id}`} className="block">
+      <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 hover:border-emerald-300 transition active:scale-[0.98]">
+        <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0 overflow-hidden border border-gray-200">
+          {bird.main_photo_url ? (
+            <img src={bird.main_photo_url} alt={bird.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400"><Bird className="w-8 h-8" /></div>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col justify-center">
+          <div className="flex justify-between items-start mb-1">
+            <h2 className="text-base font-bold text-gray-900 leading-tight">{bird.name || 'Sem nome'}</h2>
+            <span className="font-mono text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md border border-gray-200">{bird.code}</span>
+          </div>
+          <p className="text-xs font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
+            <Feather className="w-3 h-3" />
+            {bird.species?.name || 'Indefinida'} {bird.breeds?.name ? `· ${bird.breeds.name}` : ''}
+          </p>
+          <div className="flex items-center gap-3 mt-2 text-[11px] font-bold text-gray-600">
+            <span className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
+              <MapPin className="w-3 h-3 text-blue-600" />
+              {bird.recintos?.name || 'Não alocado'}
+            </span>
+            <span className="flex items-center gap-1">
+              {bird.gender === 'MALE' ? '♂ Macho' : bird.gender === 'FEMALE' ? '♀ Fêmea' : '❓ Indefinido'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Link>
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-<header className="bg-white border-b border-gray-200 p-5 sticky top-0 z-10 space-y-4">
+      <header className="bg-white border-b border-gray-200 p-5 sticky top-0 z-10 space-y-3">
         <div className="flex justify-between items-center">
-          {/* Agrupamento do Botão Voltar + Título */}
           <div className="flex items-center gap-2">
             <Link href="/" className="p-2 -ml-2 text-gray-500 hover:text-gray-900 rounded-full hover:bg-gray-100 transition" title="Voltar para o Início">
               <ChevronLeft className="w-6 h-6" />
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">Meu Plantel</h1>
           </div>
-          
-          {/* Botão de Adicionar Nova Ave */}
-          <Link 
-            href="/novo" 
-            className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl transition shadow-sm"
-            title="Adicionar Nova Ave"
-          >
+          <Link href="/novo" className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl transition shadow-sm">
             <Plus className="w-6 h-6" />
           </Link>
         </div>
@@ -80,6 +129,31 @@ export default function ListaAvesPage() {
             className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none transition"
           />
         </div>
+
+        {/* FILTROS E AGRUPAMENTO */}
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Filter className="absolute left-3 top-3 w-4 h-4 text-emerald-600" />
+            <select 
+              value={selectedSpecies}
+              onChange={(e) => setSelectedSpecies(e.target.value)}
+              className="w-full pl-9 pr-8 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-900 text-sm font-bold focus:ring-2 focus:ring-emerald-600 outline-none appearance-none"
+            >
+              <option value="ALL">Todas as Espécies</option>
+              {availableSpecies.map(sp => (
+                <option key={sp.id} value={sp.id}>{sp.name}</option>
+              ))}
+            </select>
+          </div>
+          
+          <button 
+            onClick={() => setGroupByRecinto(!groupByRecinto)}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold border transition ${groupByRecinto ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+          >
+            <Layers className="w-4 h-4" />
+            Recinto
+          </button>
+        </div>
       </header>
 
       <main className="p-4 max-w-lg mx-auto">
@@ -89,62 +163,42 @@ export default function ListaAvesPage() {
           <div className="text-center py-10 mt-10 bg-white rounded-2xl border border-gray-100 shadow-sm">
             <Bird className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-900 font-bold">Nenhuma ave encontrada.</p>
-            <p className="text-gray-500 text-sm mt-1">Que tal adicionar um novo animal?</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredBirds.map(bird => (
-              <Link key={bird.id} href={`/aves/${bird.id}`} className="block">
-                <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 hover:border-emerald-300 transition active:scale-[0.98]">
-                  
-                  {/* Foto da Ave */}
-                  <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0 overflow-hidden border border-gray-200">
-                    {bird.main_photo_url ? (
-                      <img src={bird.main_photo_url} alt={bird.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <Bird className="w-8 h-8" />
-                      </div>
-                    )}
+          groupByRecinto ? (
+            // RENDERIZAÇÃO AGRUPADA
+            <div className="space-y-6">
+              {Object.entries(groupedBirds).map(([recinto, aves]) => (
+                <div key={recinto}>
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-1 border-b border-gray-200 pb-2 flex justify-between items-center">
+                    <span>{recinto}</span>
+                    <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full normal-case">{aves.length} aves</span>
+                  </h3>
+                  <div className="space-y-3">
+                    {aves.map(bird => <BirdCard key={bird.id} bird={bird} />)}
                   </div>
-
-                  {/* Informações da Ave */}
-                  <div className="flex-1 flex flex-col justify-center">
-                    <div className="flex justify-between items-start mb-1">
-                      <h2 className="text-base font-bold text-gray-900 leading-tight">
-                        {bird.name || 'Sem nome'}
-                      </h2>
-                      <span className="font-mono text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md border border-gray-200">
-                        {bird.code}
-                      </span>
-                    </div>
-
-                    {/* Espécie e Raça */}
-                    <p className="text-xs font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
-                      <Feather className="w-3 h-3" />
-                      {bird.species?.name} {bird.breeds?.name ? `· ${bird.breeds.name}` : ''}
-                    </p>
-
-                    {/* Recinto e Sexo */}
-                    <div className="flex items-center gap-3 mt-2 text-[11px] font-bold text-gray-600">
-                      <span className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
-                        <MapPin className="w-3 h-3 text-blue-600" />
-                        {bird.recintos?.name || 'Não alocado'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        {bird.gender === 'MALE' ? '♂ Macho' : bird.gender === 'FEMALE' ? '♀ Fêmea' : '❓ Indefinido'}
-                      </span>
-                    </div>
-                  </div>
-
                 </div>
-              </Link>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            // RENDERIZAÇÃO LISTA SIMPLES
+            <div className="space-y-3">
+              {filteredBirds.map(bird => <BirdCard key={bird.id} bird={bird} />)}
+            </div>
+          )
         )}
       </main>
 
       <BottomNav />
     </div>
+  )
+}
+
+// O Next.js exige o Suspense em volta de componentes que usam leitura da URL (useSearchParams)
+export default function ListaAvesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 p-10 text-center text-gray-800 font-bold">Iniciando...</div>}>
+      <ListaAvesContent />
+    </Suspense>
   )
 }

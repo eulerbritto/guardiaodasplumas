@@ -2,12 +2,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 export default function Template({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  
   // Estados possíveis: 'initial' -> 'open' -> 'closing' -> 'done'
-  const [phase, setPhase] = useState<'initial' | 'open' | 'closing' | 'done'>('initial')
+  // Se não estiver na Home ('/'), já começa como 'done' para pular a animação
+  const [phase, setPhase] = useState<'initial' | 'open' | 'closing' | 'done'>(
+    pathname === '/' ? 'initial' : 'done'
+  )
 
   useEffect(() => {
+    // Se NÃO estiver na Home, não faz nada com timers
+    if (pathname !== '/') return;
+
     // 1. Logo que a tela monta, dispara a classe "open" para o pavão abrir a cauda
     const timerOpen = setTimeout(() => {
       setPhase('open')
@@ -23,13 +32,12 @@ export default function Template({ children }: { children: React.ReactNode }) {
       setPhase('done')
     }, 1700)
 
-    // Limpeza dos timers caso o usuário mude de tela muito rápido
     return () => {
       clearTimeout(timerOpen)
       clearTimeout(timerClosing)
       clearTimeout(timerDone)
     }
-  }, [])
+  }, [pathname])
 
   return (
     <>
