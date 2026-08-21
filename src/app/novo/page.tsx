@@ -11,6 +11,7 @@ import Link from 'next/link'
 type Species = { id: string; name: string }
 type Breed = { id: string; name: string; species_id: string }
 type Recinto = { id: string; name: string }
+type Contact = { id: string; name: string }
 type Bird = { id: string; name: string | null; code: string; species_id: string; gender: string; breed_id?: string }
 
 export default function NovaAvePage() {
@@ -19,19 +20,19 @@ export default function NovaAvePage() {
   
   const [loading, setLoading] = useState(false)
   const [species, setSpecies] = useState<Species[]>([])
-  const [allBreeds, setAllBreeds] = useState<Breed[]>([]) // Estado para as raças
+  const [allBreeds, setAllBreeds] = useState<Breed[]>([]) 
   const [recintos, setRecintos] = useState<Recinto[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [allBirds, setAllBirds] = useState<Bird[]>([])
   const [error, setError] = useState<string | null>(null)
   
-  // Controle de exibição das raças
   const [showAllBreeds, setShowAllBreeds] = useState(false)
   
   const [formData, setFormData] = useState({
     species_id: '',
     breed_id: '',
     recinto_id: '',
-    origin_breeder: '',
+    contato_id: '',
     father_id: '',
     mother_id: '',
     name: '',
@@ -39,57 +40,52 @@ export default function NovaAvePage() {
     gender: 'UNKNOWN',
     birth_date: '',
     acquisition_date: new Date().toISOString().split('T')[0],
+    acquisition_value: '',
   })
 
   useEffect(() => {
     async function loadInitialData() {
-      // 1. Carregar Espécies
-      const { data: speciesData } = await supabase.from('species').select('*').order('name')
+      const [
+        { data: speciesData }, 
+        { data: breedsData }, 
+        { data: recintosData }, 
+        { data: birdsData },
+        { data: contactsData }
+      ] = await Promise.all([
+        supabase.from('species').select('*').order('name'),
+        supabase.from('breeds').select('*').order('name'),
+        supabase.from('recintos').select('*').order('name'),
+        // Trazemos as aves independente de status (ACTIVE ou INACTIVE) para nunca repetir código
+        supabase.from('birds').select('id, name, code, species_id, gender, breed_id'),
+        supabase.from('contacts').select('id, name').order('name')
+      ])
+
       if (speciesData) {
         setSpecies(speciesData)
         const pavao = speciesData.find(s => s.name.toLowerCase() === 'pavão')
         if (pavao) setFormData(prev => ({ ...prev, species_id: pavao.id }))
       }
-
-      // 2. Carregar Raças/Variedades (Todas)
-      const { data: breedsData } = await supabase.from('breeds').select('*').order('name')
       if (breedsData) setAllBreeds(breedsData)
-
-      // 3. Carregar Recintos
-      const { data: recintosData } = await supabase.from('recintos').select('*').order('name')
       if (recintosData) setRecintos(recintosData)
-
-      // 4. Carregar lista de aves (Adicionado o breed_id para o filtro inteligente funcionar)
-      const { data: birdsData } = await supabase.from('birds').select('id, name, code, species_id, gender, breed_id').eq('status', 'ACTIVE')
       if (birdsData) setAllBirds(birdsData)
+      if (contactsData) setContacts(contactsData)
     }
     loadInitialData()
   }, [supabase])
 
-  // ==========================================
   // LÓGICA INTELIGENTE DE FILTRAGEM
-  // ==========================================
-  
-  // 1. Raças
   const availableBreeds = allBreeds.filter(b => b.species_id === formData.species_id)
-  
-  // Descobre quais raças já estão em uso no plantel
   const usedBreedIds = new Set(allBirds.map(b => b.breed_id).filter(Boolean))
   const usedBreeds = availableBreeds.filter(b => usedBreedIds.has(b.id))
-  
   const otherBreedsCount = availableBreeds.length - usedBreeds.length
 
-  // Define se mostra tudo ou só as mais usadas
   const displayedBreeds = (showAllBreeds || usedBreeds.length === 0) 
     ? availableBreeds 
     : usedBreeds
 
-  // 2. Pais
   const potentialParents = allBirds.filter(b => b.species_id === formData.species_id)
   const potentialFathers = potentialParents.filter(b => b.gender !== 'FEMALE')
   const potentialMothers = potentialParents.filter(b => b.gender !== 'MALE')
-
-  // ==========================================
 
   const getSpeciesPrefix = (speciesName: string) => {
     const name = speciesName.toLowerCase()
@@ -116,13 +112,30 @@ export default function NovaAvePage() {
       
       const prefix = getSpeciesPrefix(selectedSpecies.name)
 
-      const { count } = await supabase
+      // ==============================================================
+      // CORREÇÃO: Busca o MAIOR código da espécie para gerar o próximo
+      // ==============================================================
+      const { data: lastBirdData } = await supabase
         .from('birds')
-        .select('*', { count: 'exact', head: true })
+        .select('code')
         .eq('species_id', formData.species_id)
-      
-      const nextNumber = (count || 0) + 1
+        .order('code', { ascending: false }) // Pega o maior código alfabeticamente (ex: PV-000010 vem antes de PV-000009)
+        .limit(1)
+        .maybeSingle()
+
+      let nextNumber = 1
+      if (lastBirdData && lastBirdData.code) {
+        const parts = lastBirdData.code.split('-')
+        if (parts.length === 2) {
+          const lastNumber = parseInt(parts[1], 10)
+          if (!isNaN(lastNumber)) {
+            nextNumber = lastNumber + 1 // Pega o último número gerado e soma 1
+          }
+        }
+      }
+
       const generatedCode = `${prefix}-${String(nextNumber).padStart(6, '0')}`
+      // ==============================================================
 
       const { error: insertError } = await supabase.from('birds').insert({
         user_id: user.id,
@@ -130,7 +143,7 @@ export default function NovaAvePage() {
         species_id: formData.species_id,
         breed_id: formData.breed_id || null, 
         recinto_id: formData.recinto_id || null,
-        origin_breeder: formData.origin_breeder || null,
+        contato_id: formData.contato_id || null,
         father_id: formData.father_id || null,
         mother_id: formData.mother_id || null,
         name: formData.name || null,
@@ -138,6 +151,7 @@ export default function NovaAvePage() {
         gender: formData.gender,
         birth_date: formData.birth_date || null,
         acquisition_date: formData.acquisition_date || null,
+        acquisition_value: formData.acquisition_value ? parseFloat(formData.acquisition_value) : null,
         status: 'ACTIVE',
       })
 
@@ -160,7 +174,6 @@ export default function NovaAvePage() {
       ...(name === 'species_id' ? { breed_id: '' } : {})
     }))
 
-    // Se trocou a espécie, volta a esconder a lista longa de raças
     if (name === 'species_id') {
       setShowAllBreeds(false)
     }
@@ -181,7 +194,6 @@ export default function NovaAvePage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
-            {/* Espécie */}
             <div>
               <label className="block text-sm font-bold text-gray-800 mb-1">Espécie *</label>
               <select name="species_id" required value={formData.species_id} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none">
@@ -190,7 +202,6 @@ export default function NovaAvePage() {
               </select>
             </div>
 
-            {/* Recinto */}
             <div>
               <label className="block text-sm font-bold text-gray-800 mb-1">Recinto / Baia</label>
               <select name="recinto_id" value={formData.recinto_id} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none">
@@ -200,20 +211,20 @@ export default function NovaAvePage() {
             </div>
           </div>
 
-          {/* ORIGEM E GENEALOGIA */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
             <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider border-b pb-2">Origem e Genealogia</h3>
             
             <div>
               <label className="block text-sm font-bold text-gray-800 mb-1">Criatório de Origem</label>
-              <input 
-                type="text" 
-                name="origin_breeder" 
-                placeholder="Ex: Próprio ou Nome do Criatório" 
-                value={formData.origin_breeder} 
+              <select 
+                name="contato_id" 
+                value={formData.contato_id} 
                 onChange={handleChange} 
-                className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium placeholder-gray-400 focus:ring-2 focus:ring-emerald-600 outline-none" 
-              />
+                className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none" 
+              >
+                <option value="">Próprio / Não Informado</option>
+                {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -234,7 +245,6 @@ export default function NovaAvePage() {
             </div>
           </div>
 
-          {/* DETALHES DA AVE */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
             <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider border-b pb-2">Dados da Ave</h3>
             
@@ -244,7 +254,6 @@ export default function NovaAvePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              {/* O NOVO CAMPO DE RAÇA INTELIGENTE */}
               <div>
                 <label className="block text-sm font-bold text-gray-800 mb-1">Raça / Variedade</label>
                 <select 
@@ -259,7 +268,6 @@ export default function NovaAvePage() {
                   ))}
                 </select>
                 
-                {/* Botão de carregar as demais raças */}
                 {!showAllBreeds && usedBreeds.length > 0 && otherBreedsCount > 0 && (
                   <button 
                     type="button" 
@@ -292,9 +300,14 @@ export default function NovaAvePage() {
                 <input type="date" name="birth_date" value={formData.birth_date} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-800 mb-1">Aquisição</label>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Aquisição (Data)</label>
                 <input type="date" name="acquisition_date" required value={formData.acquisition_date} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none" />
               </div>
+            </div>
+            
+            <div className="pt-2">
+              <label className="block text-sm font-bold text-gray-800 mb-1">Valor de Aquisição (R$)</label>
+              <input type="number" step="0.01" name="acquisition_value" placeholder="Ex: 1500.00" value={formData.acquisition_value} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium placeholder-gray-400 focus:ring-2 focus:ring-emerald-600 outline-none" />
             </div>
           </div>
 

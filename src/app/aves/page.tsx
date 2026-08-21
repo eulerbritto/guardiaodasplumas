@@ -37,7 +37,7 @@ function ListaAvesContent() {
         
         // Extrai espécies únicas para o Dropdown de filtro
         const uniqueSp = new Map()
-        // Adicionando (b: any) para resolver o erro TS2339 da Vercel
+        // Adicionando (b: any) para resolver o erro de build da Vercel
         data.forEach((b: any) => {
           const sp = b.species as any
           const spId = sp?.id || 'indef'
@@ -64,7 +64,7 @@ function ListaAvesContent() {
     return matchesSearch && matchesSpecies
   })
 
-  // Lógica de Agrupamento - Resolvendo o erro TS18046 (typeof birds)
+  // Lógica de Agrupamento - Resolvendo o erro TS da Vercel
   const groupedBirds = filteredBirds.reduce((acc: Record<string, any[]>, bird: any) => {
     const rec = bird.recintos as any
     const recintoName = rec?.name || 'Não alocado'
@@ -73,7 +73,7 @@ function ListaAvesContent() {
     return acc
   }, {})
 
-  // Componente de Cartão isolado para não repetir código
+  // Componente de Cartão isolado
   const BirdCard = ({ bird }: { bird: any }) => {
     const sp = bird.species as any
     const br = bird.breeds as any
