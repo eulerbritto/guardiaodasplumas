@@ -1,15 +1,30 @@
 // src/app/layout.tsx
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
+export const viewport: Viewport = {
+  themeColor: "#059669", // Cor esmeralda do nosso tema
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
+
 export const metadata: Metadata = {
   title: "Guardião das Plumas",
-  description: "Gerenciamento individual de aves",
+  description: "Gestão do seu plantel na palma da mão",
   manifest: "/manifest.json",
-  themeColor: "#059669", // emerald-600
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Guardião",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
