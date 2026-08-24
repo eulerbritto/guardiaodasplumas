@@ -41,6 +41,7 @@ export default function NovaAvePage() {
     birth_date: '',
     acquisition_date: new Date().toISOString().split('T')[0],
     acquisition_value: '',
+    initial_weight: '',
   })
 
   useEffect(() => {
@@ -55,7 +56,6 @@ export default function NovaAvePage() {
         supabase.from('species').select('*').order('name'),
         supabase.from('breeds').select('*').order('name'),
         supabase.from('recintos').select('*').order('name'),
-        // Trazemos as aves independente de status (ACTIVE ou INACTIVE) para nunca repetir código
         supabase.from('birds').select('id, name, code, species_id, gender, breed_id'),
         supabase.from('contacts').select('id, name').order('name')
       ])
@@ -112,14 +112,11 @@ export default function NovaAvePage() {
       
       const prefix = getSpeciesPrefix(selectedSpecies.name)
 
-      // ==============================================================
-      // CORREÇÃO: Busca o MAIOR código da espécie para gerar o próximo
-      // ==============================================================
       const { data: lastBirdData } = await supabase
         .from('birds')
         .select('code')
         .eq('species_id', formData.species_id)
-        .order('code', { ascending: false }) // Pega o maior código alfabeticamente (ex: PV-000010 vem antes de PV-000009)
+        .order('code', { ascending: false })
         .limit(1)
         .maybeSingle()
 
@@ -129,15 +126,14 @@ export default function NovaAvePage() {
         if (parts.length === 2) {
           const lastNumber = parseInt(parts[1], 10)
           if (!isNaN(lastNumber)) {
-            nextNumber = lastNumber + 1 // Pega o último número gerado e soma 1
+            nextNumber = lastNumber + 1
           }
         }
       }
 
       const generatedCode = `${prefix}-${String(nextNumber).padStart(6, '0')}`
-      // ==============================================================
 
-      const { error: insertError } = await supabase.from('birds').insert({
+      const { data: newBird, error: insertError } = await supabase.from('birds').insert({
         user_id: user.id,
         code: generatedCode,
         species_id: formData.species_id,
@@ -153,9 +149,17 @@ export default function NovaAvePage() {
         acquisition_date: formData.acquisition_date || null,
         acquisition_value: formData.acquisition_value ? parseFloat(formData.acquisition_value) : null,
         status: 'ACTIVE',
-      })
+      }).select().single()
 
       if (insertError) throw insertError
+
+      if (formData.initial_weight && newBird) {
+        await supabase.from('bird_measurements').insert({
+          bird_id: newBird.id,
+          weight_kg: parseFloat(formData.initial_weight),
+          measured_at: formData.acquisition_date
+        })
+      }
 
       router.push('/aves')
       router.refresh()
@@ -193,6 +197,7 @@ export default function NovaAvePage() {
       <main className="p-4 max-w-lg mx-auto">
         <form onSubmit={handleSubmit} className="space-y-5">
           
+          {/* BLOCO 1: ESPÉCIE E RAÇA */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
             <div>
               <label className="block text-sm font-bold text-gray-800 mb-1">Espécie *</label>
@@ -203,19 +208,37 @@ export default function NovaAvePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-800 mb-1">Recinto / Baia</label>
-              <select name="recinto_id" value={formData.recinto_id} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none">
-                <option value="">Selecione um recinto (Opcional)</option>
-                {recintos.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              <label className="block text-sm font-bold text-gray-800 mb-1">Raça / Variedade</label>
+              <select 
+                name="breed_id" 
+                value={formData.breed_id} 
+                onChange={handleChange} 
+                className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none"
+              >
+                <option value="">Nenhuma / Mestiço</option>
+                {displayedBreeds.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
               </select>
+              
+              {!showAllBreeds && usedBreeds.length > 0 && otherBreedsCount > 0 && (
+                <button 
+                  type="button" 
+                  onClick={() => setShowAllBreeds(true)}
+                  className="mt-2 text-xs font-bold text-emerald-600 hover:text-emerald-800 flex items-center transition"
+                >
+                  + Carregar outras {otherBreedsCount} raças...
+                </button>
+              )}
             </div>
           </div>
 
+          {/* BLOCO 2: ORIGEM E GENEALOGIA */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
             <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider border-b pb-2">Origem e Genealogia</h3>
             
             <div>
-              <label className="block text-sm font-bold text-gray-800 mb-1">Criatório de Origem</label>
+              <label className="block text-sm font-bold text-gray-800 mb-1">Fornecedor / Criatório de Origem</label>
               <select 
                 name="contato_id" 
                 value={formData.contato_id} 
@@ -245,6 +268,7 @@ export default function NovaAvePage() {
             </div>
           </div>
 
+          {/* BLOCO 3: DADOS DA AVE (Com Recinto movido para cá) */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
             <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider border-b pb-2">Dados da Ave</h3>
             
@@ -255,37 +279,6 @@ export default function NovaAvePage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-bold text-gray-800 mb-1">Raça / Variedade</label>
-                <select 
-                  name="breed_id" 
-                  value={formData.breed_id} 
-                  onChange={handleChange} 
-                  className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none"
-                >
-                  <option value="">Nenhuma / Mestiço</option>
-                  {displayedBreeds.map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
-                
-                {!showAllBreeds && usedBreeds.length > 0 && otherBreedsCount > 0 && (
-                  <button 
-                    type="button" 
-                    onClick={() => setShowAllBreeds(true)}
-                    className="mt-2 text-xs font-bold text-emerald-600 hover:text-emerald-800 flex items-center transition"
-                  >
-                    + Carregar outras {otherBreedsCount} raças...
-                  </button>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-gray-800 mb-1">Cores</label>
-                <input type="text" name="colors" placeholder="Ex: Verde" value={formData.colors} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium placeholder-gray-400 focus:ring-2 focus:ring-emerald-600 outline-none" />
-              </div>
-            </div>
-
-            <div>
               <label className="block text-sm font-bold text-gray-800 mb-1">Sexo</label>
               <select name="gender" required value={formData.gender} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none">
                 <option value="UNKNOWN">Não identificado</option>
@@ -293,6 +286,22 @@ export default function NovaAvePage() {
                 <option value="FEMALE">Fêmea</option>
               </select>
             </div>
+             
+              
+
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Cores</label>
+                <input type="text" name="colors" placeholder="Ex: Verde" value={formData.colors} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium placeholder-gray-400 focus:ring-2 focus:ring-emerald-600 outline-none" />
+              </div>
+            </div>
+
+           <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Recinto / Baia</label>
+                <select name="recinto_id" value={formData.recinto_id} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 bg-white text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none">
+                  <option value="">Não alocado</option>
+                  {recintos.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </div>
 
             <div className="grid grid-cols-2 gap-3 pt-2">
               <div>
@@ -304,10 +313,16 @@ export default function NovaAvePage() {
                 <input type="date" name="acquisition_date" required value={formData.acquisition_date} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium focus:ring-2 focus:ring-emerald-600 outline-none" />
               </div>
             </div>
-            
-            <div className="pt-2">
-              <label className="block text-sm font-bold text-gray-800 mb-1">Valor de Aquisição (R$)</label>
-              <input type="number" step="0.01" name="acquisition_value" placeholder="Ex: 1500.00" value={formData.acquisition_value} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium placeholder-gray-400 focus:ring-2 focus:ring-emerald-600 outline-none" />
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Valor de Aquisição (R$)</label>
+                <input type="number" step="0.01" name="acquisition_value" placeholder="Ex: 1500.00" value={formData.acquisition_value} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium placeholder-gray-400 focus:ring-2 focus:ring-emerald-600 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Peso Inicial (kg)</label>
+                <input type="number" step="0.01" name="initial_weight" placeholder="Ex: 4.5" value={formData.initial_weight} onChange={handleChange} className="w-full rounded-lg border-gray-300 border p-3 text-gray-900 font-medium placeholder-gray-400 focus:ring-2 focus:ring-emerald-600 outline-none" />
+              </div>
             </div>
           </div>
 

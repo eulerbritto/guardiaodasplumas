@@ -14,7 +14,8 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Warehouse
+  BirdIcon,
+  Feather
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -159,7 +160,7 @@ export default function DashboardPage() {
         <div className="bg-emerald-700/50 border border-emerald-500/40 p-4 rounded-2xl flex flex-col gap-3 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="bg-white/10 p-3 rounded-xl mt-1">
-              <Users className="w-6 h-6 text-white" />
+              <BirdIcon className="w-6 h-6 text-white" />
             </div>
             <div>
               <p className="text-xs text-emerald-200 uppercase tracking-wider font-semibold">
@@ -198,6 +199,8 @@ export default function DashboardPage() {
           <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider px-1 mb-3">
             Ações Rápidas
           </h2>
+          
+          {/* GRID 2x2 + 1 FULL WIDTH */}
           <div className="grid grid-cols-2 gap-3">
             <Link
               href="/novo"
@@ -210,20 +213,19 @@ export default function DashboardPage() {
                 Nova Ave
               </span>
             </Link>
+
             <Link
               href="/contatos"
               className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 hover:border-purple-300 transition group"
             >
               <div className="bg-purple-100 p-3 rounded-xl text-purple-600 w-fit group-hover:scale-110 transition-transform">
-                <Warehouse className="w-6 h-6" />
+                <Users className="w-6 h-6" />
               </div>
               <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
-                Criatórios
+                Relacionamentos
               </span>
             </Link>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
             <Link
               href="/recintos"
               className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 hover:border-blue-300 transition group"
@@ -235,16 +237,35 @@ export default function DashboardPage() {
                 Recintos
               </span>
             </Link>
+
             <Link
-              href="/contatos"
-              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 hover:border-purple-300 transition group"
+              href="/scanner"
+              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 hover:border-orange-300 transition group"
             >
-              <div className="bg-purple-100 p-3 rounded-xl text-purple-600 w-fit group-hover:scale-110 transition-transform">
+              <div className="bg-orange-100 p-3 rounded-xl text-orange-600 w-fit group-hover:scale-110 transition-transform">
                 <QrCode className="w-6 h-6" />
               </div>
               <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
-                Criatórios
+                Escanear
               </span>
+            </Link>
+
+            {/* Novo Botão: Espécies e Raças ocupando as duas colunas */}
+            <Link
+              href="/especies"
+              className="col-span-2 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:border-cyan-300 transition group"
+            >
+              <div className="bg-cyan-100 p-3 rounded-xl text-cyan-600 group-hover:scale-110 transition-transform">
+                <Feather className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
+                  Espécies e Raças
+                </span>
+                <span className="text-xs text-gray-500 font-medium">
+                  Gerenciar tabela de genéticas e variedades
+                </span>
+              </div>
             </Link>
           </div>
         </div>
