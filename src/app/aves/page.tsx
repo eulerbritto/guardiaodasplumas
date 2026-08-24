@@ -4,7 +4,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '@/components/ui/BottomNav'
-import { Search, Plus, Bird, MapPin, Feather, ChevronLeft, Layers, Filter } from 'lucide-react'
+import { Search, Plus, Bird, MapPin, Feather, ChevronLeft, Layers, Filter, Banknote, Skull } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
@@ -19,25 +19,28 @@ function ListaAvesContent() {
   
   const [selectedSpecies, setSelectedSpecies] = useState(initialSpeciesId)
   const [groupByRecinto, setGroupByRecinto] = useState(false)
+  
+  // NOVOS ESTADOS DE FILTRO (Toggles)
+  const [showSold, setShowSold] = useState(false)
+  const [showInactive, setShowInactive] = useState(false)
+  
   const [availableSpecies, setAvailableSpecies] = useState<any[]>([])
 
   useEffect(() => {
     async function fetchBirds() {
+      // Agora buscamos TODAS as aves (removemos o .eq('status', 'ACTIVE')) e trazemos o campo status
       const { data } = await supabase
         .from('birds')
         .select(`
-          id, name, code, gender, main_photo_url, 
+          id, name, code, gender, main_photo_url, status, 
           species (id, name), breeds (name), recintos (name)
         `)
-        .eq('status', 'ACTIVE')
         .order('created_at', { ascending: false })
 
       if (data) {
         setBirds(data)
         
-        // Extrai espécies únicas para o Dropdown de filtro
         const uniqueSp = new Map()
-        // Adicionando (b: any) para resolver o erro de build da Vercel
         data.forEach((b: any) => {
           const sp = b.species as any
           const spId = sp?.id || 'indef'
@@ -51,20 +54,27 @@ function ListaAvesContent() {
     fetchBirds()
   }, [supabase])
 
-  // Lógica de Filtragem (Pesquisa + Dropdown de Espécie)
+  // Lógica de Filtragem (Pesquisa + Dropdown de Espécie + Status)
   const filteredBirds = birds.filter((bird: any) => {
+    // 1. Filtro de Texto
     const term = searchTerm.toLowerCase()
     const matchesSearch = (bird.name && bird.name.toLowerCase().includes(term)) || 
                           (bird.code && bird.code.toLowerCase().includes(term))
     
+    // 2. Filtro de Espécie
     const sp = bird.species as any
     const spId = sp?.id || 'indef'
     const matchesSpecies = selectedSpecies === 'ALL' || spId === selectedSpecies
 
-    return matchesSearch && matchesSpecies
+    // 3. Filtro Inteligente de Status (Lógica dos Toggles)
+    const matchesStatus = 
+      (bird.status === 'ACTIVE') || 
+      (showSold && bird.status === 'SOLD') || 
+      (showInactive && bird.status === 'INACTIVE')
+
+    return matchesSearch && matchesSpecies && matchesStatus
   })
 
-  // Lógica de Agrupamento - Resolvendo o erro TS da Vercel
   const groupedBirds = filteredBirds.reduce((acc: Record<string, any[]>, bird: any) => {
     const rec = bird.recintos as any
     const recintoName = rec?.name || 'Não alocado'
@@ -73,7 +83,6 @@ function ListaAvesContent() {
     return acc
   }, {})
 
-  // Componente de Cartão isolado
   const BirdCard = ({ bird }: { bird: any }) => {
     const sp = bird.species as any
     const br = bird.breeds as any
@@ -81,17 +90,22 @@ function ListaAvesContent() {
     
     return (
       <Link key={bird.id} href={`/aves/${bird.id}`} className="block">
-        <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 hover:border-emerald-300 transition active:scale-[0.98]">
-          <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0 overflow-hidden border border-gray-200">
+        <div className={`bg-white p-3 rounded-2xl shadow-sm border flex gap-4 transition active:scale-[0.98] ${bird.status === 'SOLD' ? 'border-blue-200 bg-blue-50/30' : bird.status === 'INACTIVE' ? 'border-red-200 bg-red-50/30' : 'border-gray-100 hover:border-emerald-300'}`}>
+          <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0 overflow-hidden border border-gray-200 relative">
             {bird.main_photo_url ? (
-              <img src={bird.main_photo_url} alt={bird.name} className="w-full h-full object-cover" />
+              <img src={bird.main_photo_url} alt={bird.name} className={`w-full h-full object-cover ${bird.status !== 'ACTIVE' ? 'grayscale opacity-80' : ''}`} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400"><Bird className="w-8 h-8" /></div>
             )}
           </div>
           <div className="flex-1 flex flex-col justify-center">
             <div className="flex justify-between items-start mb-1">
-              <h2 className="text-base font-bold text-gray-900 leading-tight">{bird.name || 'Sem nome'}</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-base font-bold text-gray-900 leading-tight truncate">{bird.name || 'Sem nome'}</h2>
+                {/* EMBLEMAS DE STATUS */}
+                {bird.status === 'SOLD' && <span className="text-[8px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded shadow-sm tracking-wider">VENDIDA</span>}
+                {bird.status === 'INACTIVE' && <span className="text-[8px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded shadow-sm tracking-wider">ÓBITO</span>}
+              </div>
               <span className="font-mono text-[10px] font-bold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md border border-gray-200">{bird.code}</span>
             </div>
             <p className="text-xs font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
@@ -99,7 +113,7 @@ function ListaAvesContent() {
               {sp?.name || 'Indefinida'} {br?.name ? `· ${br.name}` : ''}
             </p>
             <div className="flex items-center gap-3 mt-2 text-[11px] font-bold text-gray-600">
-              <span className="flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded-md border border-gray-100">
+              <span className="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded-md border border-gray-200 shadow-sm">
                 <MapPin className="w-3 h-3 text-blue-600" />
                 {rec?.name || 'Não alocado'}
               </span>
@@ -140,29 +154,48 @@ function ListaAvesContent() {
           />
         </div>
 
-        {/* FILTROS E AGRUPAMENTO */}
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <Filter className="absolute left-3 top-3 w-4 h-4 text-emerald-600" />
-            <select 
-              value={selectedSpecies}
-              onChange={(e) => setSelectedSpecies(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-900 text-sm font-bold focus:ring-2 focus:ring-emerald-600 outline-none appearance-none"
+        {/* FILTROS, AGRUPAMENTO E TOGGLES */}
+        <div className="flex flex-col gap-2">
+          {/* Linha 1: Espécie e Recinto */}
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <Filter className="absolute left-3 top-3 w-4 h-4 text-emerald-600" />
+              <select 
+                value={selectedSpecies}
+                onChange={(e) => setSelectedSpecies(e.target.value)}
+                className="w-full pl-9 pr-8 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-900 text-sm font-bold focus:ring-2 focus:ring-emerald-600 outline-none appearance-none"
+              >
+                <option value="ALL">Todas as Espécies</option>
+                {availableSpecies.map(sp => (
+                  <option key={sp.id} value={sp.id}>{sp.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <button 
+              onClick={() => setGroupByRecinto(!groupByRecinto)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold border transition ${groupByRecinto ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
             >
-              <option value="ALL">Todas as Espécies</option>
-              {availableSpecies.map(sp => (
-                <option key={sp.id} value={sp.id}>{sp.name}</option>
-              ))}
-            </select>
+              <Layers className="w-4 h-4" />
+              Recinto
+            </button>
           </div>
-          
-          <button 
-            onClick={() => setGroupByRecinto(!groupByRecinto)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold border transition ${groupByRecinto ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-          >
-            <Layers className="w-4 h-4" />
-            Recinto
-          </button>
+
+          {/* Linha 2: Toggles de Vendidas e Óbitos */}
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowSold(!showSold)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition ${showSold ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+            >
+              <Banknote className="w-3.5 h-3.5" /> Exibir Vendidas
+            </button>
+            <button 
+              onClick={() => setShowInactive(!showInactive)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition ${showInactive ? 'bg-red-100 border-red-300 text-red-800' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+            >
+              <Skull className="w-3.5 h-3.5" /> Exibir Óbitos
+            </button>
+          </div>
         </div>
       </header>
 
@@ -173,10 +206,10 @@ function ListaAvesContent() {
           <div className="text-center py-10 mt-10 bg-white rounded-2xl border border-gray-100 shadow-sm">
             <Bird className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-900 font-bold">Nenhuma ave encontrada.</p>
+            <p className="text-xs text-gray-500 mt-1">Verifique seus filtros ou adicione novas aves.</p>
           </div>
         ) : (
           groupByRecinto ? (
-            // RENDERIZAÇÃO AGRUPADA - Tipagem explícita para evitar o erro TS7006 e TS18046
             <div className="space-y-6">
               {Object.entries(groupedBirds).map(([recinto, aves]: [string, any[]]) => (
                 <div key={recinto}>
@@ -191,7 +224,6 @@ function ListaAvesContent() {
               ))}
             </div>
           ) : (
-            // RENDERIZAÇÃO LISTA SIMPLES
             <div className="space-y-3">
               {filteredBirds.map((bird: any) => <BirdCard key={bird.id} bird={bird} />)}
             </div>

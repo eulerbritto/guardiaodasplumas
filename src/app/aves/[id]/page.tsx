@@ -225,10 +225,8 @@ export default function FichaAvePage() {
   }
 
   const formatDate = (d: string) => d && isValid(parseISO(d)) ? format(parseISO(d), 'dd/MM/yyyy') : 'Não informada'
-  
   const getSocialLink = (t: string) => t.startsWith('http') ? t : t.startsWith('@') ? `https://instagram.com/${t.substring(1)}` : `https://instagram.com/${t}`
 
-  // FUNÇÃO QUE ESTAVA FALTANDO PARA RENDERIZAR OS EMBLEMAS DE EVENTO
   const getEventBadge = (type: string) => {
     if (type === 'HEALTH') return <span className="flex items-center gap-1 bg-red-100 text-red-900 px-2.5 py-1 rounded-full text-xs font-bold"><ShieldAlert className="w-3.5 h-3.5 text-red-700" /> Saúde</span>
     if (type === 'TRANSFER') return <span className="flex items-center gap-1 bg-blue-100 text-blue-900 px-2.5 py-1 rounded-full text-xs font-bold"><ArrowRightLeft className="w-3.5 h-3.5 text-blue-700" /> Mudança</span>
@@ -242,6 +240,10 @@ export default function FichaAvePage() {
   const availableBreeds = allBreeds.filter(b => b.species_id === editForm.species_id)
   const usedBreedIds = new Set(allBirds.map(b => b.breed_id).filter(Boolean))
   const usedBreeds = availableBreeds.filter(b => usedBreedIds.has(b.id))
+  
+  // A VARIÁVEL QUE ESTAVA FALTANDO FOI ADICIONADA AQUI:
+  const otherBreedsCount = availableBreeds.length - usedBreeds.length
+  
   const displayedBreeds = (showAllBreeds || usedBreeds.length === 0) ? availableBreeds : usedBreeds
 
   const buyer = bird.buyer_id ? contacts.find(c => c.id === bird.buyer_id) : null
