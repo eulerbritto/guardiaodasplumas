@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   Clock,
   BirdIcon,
-  Feather
+  Feather,
+  Package
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -264,6 +265,23 @@ export default function DashboardPage() {
                 </span>
                 <span className="text-xs text-gray-500 font-medium">
                   Gerenciar tabela de genéticas e variedades
+                </span>
+              </div>
+            </Link>
+
+            <Link
+              href="/insumos"
+              className="col-span-2 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:border-orange-300 transition group"
+            >
+              <div className="bg-orange-100 p-3 rounded-xl text-orange-600 group-hover:scale-110 transition-transform">
+                <Package className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
+                  Estoque de Insumos
+                </span>
+                <span className="text-xs text-gray-500 font-medium">
+                  Rações, vacinas, compras e controle de gastos
                 </span>
               </div>
             </Link>

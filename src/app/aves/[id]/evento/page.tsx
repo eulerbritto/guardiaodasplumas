@@ -1,10 +1,10 @@
 // src/app/aves/[id]/evento/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft, Activity, CheckCircle2, Settings2, Plus, Trash2, CalendarPlus } from 'lucide-react'
+import { ChevronLeft, Activity, CheckCircle2, Settings2, Plus, Trash2, CalendarPlus, Pill } from 'lucide-react'
 import Link from 'next/link'
 
 type ReminderRule = {
@@ -31,64 +31,76 @@ export default function NovoEventoPage() {
   // === ESTADOS PARA OPÇÕES AVANÇADAS DE LEMBRETE ===
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [reminderRules, setReminderRules] = useState<ReminderRule[]>([])
-  
   const [ruleValue, setRuleValue] = useState('1')
   const [ruleUnit, setRuleUnit] = useState('days')
   const [ruleTime, setRuleTime] = useState('08:00')
 
-  // Verifica se a data selecionada é futura para liberar os lembretes
+  // === ESTADOS PARA INTEGRAÇÃO COM ESTOQUE ===
+  const [inventoryItems, setInventoryItems] = useState<any[]>([])
+  const [useInventory, setUseInventory] = useState(false)
+  const [inventoryForm, setInventoryForm] = useState({ item_id: '', quantity: '' })
+
   const isFutureDate = formData.event_date >= new Date().toISOString().split('T')[0]
 
+  // BUSCA O ESTOQUE DE MEDICAMENTOS, VACINAS E SUPLEMENTOS
+  useEffect(() => {
+    async function fetchInventory() {
+      const { data: itemsData } = await supabase.from('items').select('*')
+      const { data: transData } = await supabase.from('inventory_transactions').select('item_id, type, quantity')
+
+      if (itemsData && transData) {
+        const balanceMap: Record<string, number> = {}
+        itemsData.forEach(i => balanceMap[i.id] = 0)
+        
+        transData.forEach(t => {
+          if(t.type === 'IN') balanceMap[t.item_id] += Number(t.quantity)
+          if(t.type === 'OUT') balanceMap[t.item_id] -= Number(t.quantity)
+        })
+
+        // Filtra apenas categorias relevantes para a tela de saúde
+        const relevantItems = itemsData
+          .filter(i => ['Medicamento', 'Vacina', 'Suplemento'].includes(i.category))
+          .map(i => ({ ...i, balance: balanceMap[i.id] || 0 }))
+
+        setInventoryItems(relevantItems)
+      }
+    }
+    fetchInventory()
+  }, [supabase])
+
+
+  // === FUNÇÕES DE CÁLCULO E AGENDA NATIVA (MANTIDAS INTACTAS) ===
   const addRule = () => {
     if (!ruleValue) return
-    setReminderRules([
-      ...reminderRules, 
-      { id: Math.random().toString(), value: ruleValue, unit: ruleUnit, time: ruleTime }
-    ])
+    setReminderRules([...reminderRules, { id: Math.random().toString(), value: ruleValue, unit: ruleUnit, time: ruleTime }])
   }
 
-  const removeRule = (id: string) => {
-    setReminderRules(reminderRules.filter(r => r.id !== id))
-  }
+  const removeRule = (id: string) => { setReminderRules(reminderRules.filter(r => r.id !== id)) }
 
-  // === FUNÇÕES DE CÁLCULO E AGENDA NATIVA ===
   const calculateReminderDateTime = (eventDateStr: string, value: string, unit: string, timeStr: string) => {
-    const d = new Date(eventDateStr + 'T00:00:00') // Garante fuso horário local
+    const d = new Date(eventDateStr + 'T00:00:00')
     const val = parseInt(value) || 0
-    
     if (unit === 'minutes') d.setMinutes(d.getMinutes() - val)
     else if (unit === 'hours') d.setHours(d.getHours() - val)
     else if (unit === 'days') d.setDate(d.getDate() - val)
     else if (unit === 'weeks') d.setDate(d.getDate() - (val * 7))
     else if (unit === 'months') d.setMonth(d.getMonth() - val)
-
     const [hh, mm] = timeStr.split(':')
     d.setHours(parseInt(hh) || 0, parseInt(mm) || 0, 0, 0)
     return d
   }
 
   const downloadICS = (birdIdentifier: string) => {
-    let icsContent = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Guardião das Plumas//PT\r\n`
-    icsContent += `BEGIN:VEVENT\r\n`
-    icsContent += `UID:${Date.now()}@guardiaodasplumas.com\r\n`
+    let icsContent = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Guardião das Plumas//PT\r\nBEGIN:VEVENT\r\nUID:${Date.now()}@guardiaodasplumas.com\r\n`
     const dtStamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
     icsContent += `DTSTAMP:${dtStamp}\r\n`
     const dtStart = formData.event_date.replace(/-/g, '')
-    icsContent += `DTSTART;VALUE=DATE:${dtStart}\r\n`
-    icsContent += `SUMMARY:${formData.event_type === 'HEALTH' ? 'Saúde/Vacina' : 'Evento'} - ${birdIdentifier}\r\n`
-    icsContent += `DESCRIPTION:${formData.description}\\n\\nGerado pelo app Guardião das Plumas.\r\n`
+    icsContent += `DTSTART;VALUE=DATE:${dtStart}\r\nSUMMARY:${formData.event_type === 'HEALTH' ? 'Saúde/Vacina' : 'Evento'} - ${birdIdentifier}\r\nDESCRIPTION:${formData.description}\\n\\nGerado pelo app Guardião das Plumas.\r\n`
 
-    // Cria um alarme nativo para cada regra inserida
     reminderRules.forEach(rule => {
-      const reminderDate = calculateReminderDateTime(formData.event_date, rule.value, rule.unit, rule.time)
-      const alarmStr = reminderDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-      icsContent += `BEGIN:VALARM\r\n`
-      icsContent += `ACTION:DISPLAY\r\n`
-      icsContent += `DESCRIPTION:Lembrete de Ave: ${birdIdentifier}\r\n`
-      icsContent += `TRIGGER;VALUE=DATE-TIME:${alarmStr}\r\n`
-      icsContent += `END:VALARM\r\n`
+      const alarmStr = calculateReminderDateTime(formData.event_date, rule.value, rule.unit, rule.time).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+      icsContent += `BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Lembrete de Ave: ${birdIdentifier}\r\nTRIGGER;VALUE=DATE-TIME:${alarmStr}\r\nEND:VALARM\r\n`
     })
-
     icsContent += `END:VEVENT\r\nEND:VCALENDAR`
 
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' })
@@ -100,7 +112,7 @@ export default function NovoEventoPage() {
     document.body.removeChild(link)
   }
 
-  // === SUBMIT ===
+  // === SUBMIT INTEGRADO ===
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -110,27 +122,45 @@ export default function NovoEventoPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuário não autenticado')
 
-      // 1. Salvar o evento principal
+      let transactionId = null;
+
+      // 1. Lógica do Estoque (Se ativado)
+      if (formData.event_type === 'HEALTH' && useInventory && inventoryForm.item_id && inventoryForm.quantity) {
+        const { data: transData, error: transError } = await supabase.from('inventory_transactions').insert({
+          user_id: user.id,
+          item_id: inventoryForm.item_id,
+          type: 'OUT',
+          quantity: parseFloat(inventoryForm.quantity),
+          transaction_date: formData.event_date,
+          bird_id: params.id, // VINCULA A SAÍDA DIRETAMENTE À AVE!
+          notes: `Uso individual registrado na ficha médica. Relato: ${formData.description}`
+        }).select().single();
+
+        if (transError) throw transError;
+        transactionId = transData.id; // Guarda o ID da baixa no estoque
+      }
+
+      // 2. Salvar o evento principal da ave
       const { error: insertError } = await supabase.from('bird_events').insert({
         user_id: user.id,
         bird_id: params.id,
         event_type: formData.event_type,
         description: formData.description,
         event_date: formData.event_date,
+        transaction_id: transactionId // Amarra o evento de saúde à baixa no estoque
       })
 
       if (insertError) throw insertError
 
-      // 2. Lógica de Óbito
+      // 3. Lógica de Óbito
       if (formData.event_type === 'DEATH') {
         await supabase.from('birds').update({ status: 'INACTIVE' }).eq('id', params.id)
       }
 
-      // 3. Resgata identificador da Ave para os lembretes
       const { data: birdData } = await supabase.from('birds').select('code, name').eq('id', params.id).single()
       const birdIdentifier = birdData ? `${birdData.code}${birdData.name ? ` (${birdData.name})` : ''}` : 'Ave'
 
-      // 4. Se configurou as Regras Avançadas (ICS + Múltiplos Lembretes Internos)
+      // 4. Lógica de Lembretes ICS e Internos
       if (reminderRules.length > 0 && isFutureDate) {
         for (const rule of reminderRules) {
           const d = calculateReminderDateTime(formData.event_date, rule.value, rule.unit, rule.time)
@@ -141,27 +171,14 @@ export default function NovoEventoPage() {
             completed: false,
           })
         }
-        
-        // Dispara o download do arquivo de agenda e aguarda um pouco antes de trocar de tela
         downloadICS(birdIdentifier)
-        setTimeout(() => {
-          router.push(`/aves/${params.id}`)
-          router.refresh()
-        }, 1000)
-
+        setTimeout(() => { router.push(`/aves/${params.id}`); router.refresh() }, 1000)
       } 
-      // 5. Se não usou regras avançadas, mantém o lembrete simples padrão antigo (Apenas para Saúde Futura)
       else if (formData.event_type === 'HEALTH' && isFutureDate) {
-        await supabase.from('reminders').insert({
-          user_id: user.id,
-          title: `Saúde [${birdIdentifier}]: ${formData.description}`,
-          due_date: formData.event_date,
-          completed: false,
-        })
+        await supabase.from('reminders').insert({ user_id: user.id, title: `Saúde [${birdIdentifier}]: ${formData.description}`, due_date: formData.event_date, completed: false })
         router.push(`/aves/${params.id}`)
         router.refresh()
       } 
-      // Caso padrão (Sem lembretes)
       else {
         router.push(`/aves/${params.id}`)
         router.refresh()
@@ -175,6 +192,10 @@ export default function NovoEventoPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
+    // Reseta o estoque se mudar de tipo de evento
+    if (e.target.name === 'event_type' && e.target.value !== 'HEALTH') {
+      setUseInventory(false)
+    }
   }
 
   return (
@@ -237,6 +258,39 @@ export default function NovoEventoPage() {
             />
           </div>
 
+          {/* ======================= INTEGRAÇÃO COM ESTOQUE ======================= */}
+          {formData.event_type === 'HEALTH' && (
+            <div className="pt-4 border-t border-gray-100 bg-orange-50/50 p-4 rounded-xl border border-orange-100 -mx-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={useInventory} 
+                  onChange={(e) => setUseInventory(e.target.checked)} 
+                  className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500"
+                />
+                <span className="text-sm font-bold text-orange-900 flex items-center gap-1.5"><Pill className="w-4 h-4"/> Dar baixa no estoque?</span>
+              </label>
+
+              {useInventory && (
+                <div className="mt-4 grid grid-cols-1 gap-3 animate-in fade-in">
+                  <div>
+                    <label className="block text-[11px] font-bold text-orange-800 mb-1 uppercase tracking-wider">Item utilizado</label>
+                    <select required={useInventory} value={inventoryForm.item_id} onChange={e => setInventoryForm({...inventoryForm, item_id: e.target.value})} className="w-full border-orange-200 rounded-lg p-3 text-sm text-gray-900 font-medium outline-none focus:ring-2 focus:ring-orange-500 bg-white">
+                      <option value="">Selecione o medicamento/vacina...</option>
+                      {inventoryItems.map(i => (
+                        <option key={i.id} value={i.id}>{i.name} (Saldo: {i.balance} {i.unit})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-orange-800 mb-1 uppercase tracking-wider">Quantidade</label>
+                    <input type="number" step="0.01" required={useInventory} placeholder="Ex: 2" value={inventoryForm.quantity} onChange={e => setInventoryForm({...inventoryForm, quantity: e.target.value})} className="w-full border-orange-200 rounded-lg p-3 text-sm text-gray-900 font-medium outline-none focus:ring-2 focus:ring-orange-500 bg-white" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ======================= OPÇÕES AVANÇADAS DE LEMBRETE ======================= */}
           {isFutureDate && (
             <div className="pt-4 border-t border-gray-100">
@@ -249,12 +303,11 @@ export default function NovoEventoPage() {
               </button>
 
               {showAdvanced && (
-                <div className="mt-4 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div className="mt-4 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200 animate-in fade-in">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <CalendarPlus className="w-4 h-4" /> Adicionar Alarme na Agenda
                   </p>
                   
-                  {/* Formulário de Adição de Regra */}
                   <div className="flex flex-col gap-2">
                     <div className="flex gap-2">
                       <div className="flex-[0.5]">
@@ -281,25 +334,18 @@ export default function NovoEventoPage() {
                     </button>
                   </div>
 
-                  {/* Lista de Regras Adicionadas */}
                   {reminderRules.length > 0 && (
                     <div className="space-y-2 mt-3 pt-3 border-t border-gray-200">
                       {reminderRules.map(rule => {
                         const unitsMap: any = { minutes: 'Minutos', hours: 'Horas', days: 'Dias', weeks: 'Semanas', months: 'Meses' };
                         return (
                           <div key={rule.id} className="flex justify-between items-center bg-white border border-gray-200 p-2 rounded-lg">
-                            <span className="text-xs font-bold text-gray-700">
-                              Avisar {rule.value} {unitsMap[rule.unit]} antes, às {rule.time}
-                            </span>
-                            <button type="button" onClick={() => removeRule(rule.id)} className="text-red-400 hover:text-red-600 p-1">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <span className="text-xs font-bold text-gray-700">Avisar {rule.value} {unitsMap[rule.unit]} antes, às {rule.time}</span>
+                            <button type="button" onClick={() => removeRule(rule.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 className="w-4 h-4" /></button>
                           </div>
                         )
                       })}
-                      <p className="text-[10px] text-gray-500 font-medium italic mt-2 leading-tight">
-                        *Ao salvar o evento, o celular solicitará permissão para adicionar estes horários à sua Agenda (Google Calendar / Apple).
-                      </p>
+                      <p className="text-[10px] text-gray-500 font-medium italic mt-2 leading-tight">*Ao salvar, o celular solicitará permissão para adicionar os alarmes à sua Agenda.</p>
                     </div>
                   )}
                 </div>
@@ -318,7 +364,7 @@ export default function NovoEventoPage() {
             disabled={loading}
             className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 mt-2"
           >
-            {loading ? 'Salvando e Gerando Agenda...' : <><CheckCircle2 className="w-5 h-5" /> Salvar Evento</>}
+            {loading ? 'Salvando...' : <><CheckCircle2 className="w-5 h-5" /> Salvar Evento</>}
           </button>
         </form>
       </main>
