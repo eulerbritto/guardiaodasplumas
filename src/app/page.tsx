@@ -16,7 +16,8 @@ import {
   Clock,
   BirdIcon,
   Feather,
-  Package
+  Package,
+  BarChart3
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -201,90 +202,76 @@ export default function DashboardPage() {
             Ações Rápidas
           </h2>
           
-          {/* GRID 2x2 + 1 FULL WIDTH */}
-          <div className="grid grid-cols-2 gap-3">
-            <Link
-              href="/novo"
-              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 hover:border-emerald-300 transition group"
-            >
-              <div className="bg-emerald-100 p-3 rounded-xl text-emerald-600 w-fit group-hover:scale-110 transition-transform">
-                <PlusCircle className="w-6 h-6" />
+          {/* GRID 3x3 */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            
+            {/* --- LINHA 1 --- */}
+            <Link href="/novo" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-emerald-300 transition group">
+              <div className="bg-emerald-100 p-2.5 sm:p-3 rounded-xl text-emerald-600 group-hover:scale-110 transition-transform">
+                <PlusCircle className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
                 Nova Ave
               </span>
             </Link>
 
-            <Link
-              href="/contatos"
-              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 hover:border-purple-300 transition group"
-            >
-              <div className="bg-purple-100 p-3 rounded-xl text-purple-600 w-fit group-hover:scale-110 transition-transform">
-                <Users className="w-6 h-6" />
+            <Link href="/recintos" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-blue-300 transition group">
+              <div className="bg-blue-100 p-2.5 sm:p-3 rounded-xl text-blue-600 group-hover:scale-110 transition-transform">
+                <Map className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
-                Relacionamentos
-              </span>
-            </Link>
-
-            <Link
-              href="/recintos"
-              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 hover:border-blue-300 transition group"
-            >
-              <div className="bg-blue-100 p-3 rounded-xl text-blue-600 w-fit group-hover:scale-110 transition-transform">
-                <Map className="w-6 h-6" />
-              </div>
-              <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
                 Recintos
               </span>
             </Link>
 
-            <Link
-              href="/scanner"
-              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 hover:border-orange-300 transition group"
-            >
-              <div className="bg-orange-100 p-3 rounded-xl text-orange-600 w-fit group-hover:scale-110 transition-transform">
-                <QrCode className="w-6 h-6" />
+            <Link href="/especies" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-cyan-300 transition group">
+              <div className="bg-cyan-100 p-2.5 sm:p-3 rounded-xl text-cyan-600 group-hover:scale-110 transition-transform">
+                <Feather className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
-                Escanear
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
+                Espécies e Raças
               </span>
             </Link>
 
-            {/* Novo Botão: Espécies e Raças ocupando as duas colunas */}
-            <Link
-              href="/especies"
-              className="col-span-2 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:border-cyan-300 transition group"
-            >
-              <div className="bg-cyan-100 p-3 rounded-xl text-cyan-600 group-hover:scale-110 transition-transform">
-                <Feather className="w-6 h-6" />
+            {/* --- LINHA 2 --- */}
+            <Link href="/insumos" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-orange-300 transition group">
+              <div className="bg-orange-100 p-2.5 sm:p-3 rounded-xl text-orange-600 group-hover:scale-110 transition-transform">
+                <Package className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div>
-                <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
-                  Espécies e Raças
-                </span>
-                <span className="text-xs text-gray-500 font-medium">
-                  Gerenciar tabela de genéticas e variedades
-                </span>
-              </div>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
+                Estoque de Insumos
+              </span>
             </Link>
 
-            <Link
-              href="/insumos"
-              className="col-span-2 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:border-orange-300 transition group"
-            >
-              <div className="bg-orange-100 p-3 rounded-xl text-orange-600 group-hover:scale-110 transition-transform">
-                <Package className="w-6 h-6" />
+            <Link href="/contatos" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-purple-300 transition group">
+              <div className="bg-purple-100 p-2.5 sm:p-3 rounded-xl text-purple-600 group-hover:scale-110 transition-transform">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div>
-                <span className="text-sm md:text-base font-bold text-gray-800 block leading-tight">
-                  Estoque de Insumos
-                </span>
-                <span className="text-xs text-gray-500 font-medium">
-                  Rações, vacinas, compras e controle de gastos
-                </span>
-              </div>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
+                Relacionamentos
+              </span>
             </Link>
+
+            <Link href="/relatorios" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-indigo-300 transition group">
+              <div className="bg-indigo-100 p-2.5 sm:p-3 rounded-xl text-indigo-600 group-hover:scale-110 transition-transform">
+                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
+                Relatórios e Balanço
+              </span>
+            </Link>
+
+            {/* --- LINHA 3 --- */}
+            {/* O "col-start-2" centraliza este botão na grade de 3 colunas */}
+            <Link href="/scanner" className="col-start-2 bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-gray-400 transition group">
+              <div className="bg-gray-100 p-2.5 sm:p-3 rounded-xl text-gray-700 group-hover:scale-110 transition-transform">
+                <QrCode className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
+                Escanear
+              </span>
+            </Link>
+            
           </div>
         </div>
 
