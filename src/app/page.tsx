@@ -17,12 +17,55 @@ import {
   BirdIcon,
   Feather,
   Package,
-  BarChart3
+  BarChart3,
+  Palette // <-- Novo Ícone do botão de Tema
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+// === DICIONÁRIO DE TEMAS (O Azul é o padrão inspirado no novo Logo) ===
+const themeColors = {
+  blue: {
+    primary: 'bg-blue-600',
+    primaryDark: 'bg-blue-700',
+    primaryLight: 'bg-blue-100',
+    textPrimary: 'text-blue-600',
+    textLight: 'text-blue-100',
+    textLighter: 'text-blue-50',
+    cardBg: 'bg-blue-700/50',
+    cardBorder: 'border-blue-500/40',
+    cardSubtitle: 'text-blue-200',
+    listBg: 'bg-blue-800/40',
+    listHover: 'hover:bg-blue-800/60',
+    listBorder: 'border-blue-600/30',
+    listIcon: 'text-blue-300',
+    btnBgOut: 'bg-blue-700/60',
+    btnHoverOut: 'hover:bg-blue-700',
+    hoverBorder: 'hover:border-blue-300',
+    focusRing: 'focus:ring-blue-600',
+  },
+  emerald: {
+    primary: 'bg-emerald-600',
+    primaryDark: 'bg-emerald-700',
+    primaryLight: 'bg-emerald-100',
+    textPrimary: 'text-emerald-600',
+    textLight: 'text-emerald-100',
+    textLighter: 'text-emerald-50',
+    cardBg: 'bg-emerald-700/50',
+    cardBorder: 'border-emerald-500/40',
+    cardSubtitle: 'text-emerald-200',
+    listBg: 'bg-emerald-800/40',
+    listHover: 'hover:bg-emerald-800/60',
+    listBorder: 'border-emerald-600/30',
+    listIcon: 'text-emerald-300',
+    btnBgOut: 'bg-emerald-700/60',
+    btnHoverOut: 'hover:bg-emerald-700',
+    hoverBorder: 'hover:border-emerald-300',
+    focusRing: 'focus:ring-emerald-600',
+  }
+};
 
 // Função para pluralizar nomes das aves automaticamente
 function pluralize(count: number, word: string) {
@@ -41,98 +84,75 @@ export default function DashboardPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [totalBirds, setTotalBirds] = useState(0);
-  const [speciesCounts, setSpeciesCounts] = useState<
-    { id: string; name: string; count: number }[]
-  >([]);
+  // === ESTADO DO TEMA (Carrega do celular ou usa o Blue como Padrão) ===
+  const [themeName, setThemeName] = useState<'blue' | 'emerald'>('blue');
+  const t = themeColors[themeName]; // Variável que espalha as cores pelo app
 
+  const [totalBirds, setTotalBirds] = useState(0);
+  const [speciesCounts, setSpeciesCounts] = useState<{ id: string; name: string; count: number }[]>([]);
   const [reminders, setReminders] = useState<any[]>([]);
   const [newReminderText, setNewReminderText] = useState("");
-  const [newReminderDate, setNewReminderDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [newReminderDate, setNewReminderDate] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Tenta recuperar o tema salvo ao abrir o app
+    const savedTheme = localStorage.getItem('guardiao-theme') as 'blue' | 'emerald';
+    if (savedTheme) {
+      setThemeName(savedTheme);
+    }
+
     async function fetchData() {
-      // 1. Total de aves e contagem por espécie
-      const { data: birdsData } = await supabase
-        .from("birds")
-        .select("species (id, name)")
-        .eq("status", "ACTIVE");
+      const { data: birdsData } = await supabase.from("birds").select("species (id, name)").eq("status", "ACTIVE");
 
       if (birdsData) {
         setTotalBirds(birdsData.length);
-
-        const countsMap: Record<
-          string,
-          { id: string; name: string; count: number }
-        > = {};
-
+        const countsMap: Record<string, { id: string; name: string; count: number }> = {};
         birdsData.forEach((bird: any) => {
           const spId = bird.species?.id || "indef";
           const spName = bird.species?.name || "Indefinido";
-
-          if (!countsMap[spId]) {
-            countsMap[spId] = { id: spId, name: spName, count: 0 };
-          }
+          if (!countsMap[spId]) countsMap[spId] = { id: spId, name: spName, count: 0 };
           countsMap[spId].count += 1;
         });
-
-        // Converte em array e ordena da maior quantidade para a menor
-        setSpeciesCounts(
-          Object.values(countsMap).sort((a, b) => b.count - a.count),
-        );
+        setSpeciesCounts(Object.values(countsMap).sort((a, b) => b.count - a.count));
       }
 
-      // 2. Lembretes pendentes
-      const { data: remindersData } = await supabase
-        .from("reminders")
-        .select("*")
-        .eq("completed", false)
-        .order("due_date", { ascending: true });
-
+      const { data: remindersData } = await supabase.from("reminders").select("*").eq("completed", false).order("due_date", { ascending: true });
       if (remindersData) setReminders(remindersData);
       setLoading(false);
     }
     fetchData();
   }, [supabase]);
 
+  // Função para alternar o tema e salvar
+  const toggleTheme = () => {
+    const newTheme = themeName === 'blue' ? 'emerald' : 'blue';
+    setThemeName(newTheme);
+    localStorage.setItem('guardiao-theme', newTheme);
+  };
+
   const handleAddReminder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReminderText.trim()) return;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from("reminders")
-      .insert({
-        user_id: user.id,
-        title: newReminderText,
-        due_date: newReminderDate,
-        completed: false,
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.from("reminders").insert({
+      user_id: user.id,
+      title: newReminderText,
+      due_date: newReminderDate,
+      completed: false,
+    }).select().single();
 
     if (!error && data) {
-      setReminders(
-        [...reminders, data].sort((a, b) =>
-          a.due_date.localeCompare(b.due_date),
-        ),
-      );
+      setReminders([...reminders, data].sort((a, b) => a.due_date.localeCompare(b.due_date)));
       setNewReminderText("");
     }
   };
 
   const handleCompleteReminder = async (id: string) => {
-    const { error } = await supabase
-      .from("reminders")
-      .update({ completed: true })
-      .eq("id", id);
+    const { error } = await supabase.from("reminders").update({ completed: true }).eq("id", id);
     if (!error) setReminders(reminders.filter((r) => r.id !== id));
   };
 
@@ -143,29 +163,40 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <header className="bg-emerald-600 text-white p-6 rounded-b-3xl shadow-md">
+      {/* Cabeçalho Colorido Dinâmico */}
+      <header className={`${t.primary} text-white p-6 rounded-b-3xl shadow-md transition-colors duration-500`}>
         <div className="flex justify-between items-center mb-6">
           <div>
-            <p className="text-emerald-100 text-sm font-medium">Bem-vindo ao</p>
+            <p className={`${t.textLight} text-sm font-medium`}>Bem-vindo ao</p>
             <h1 className="text-2xl font-bold">Guardião das Plumas</h1>
           </div>
-          <button
-            onClick={handleLogout}
-            className="p-2 bg-emerald-700/60 rounded-full hover:bg-emerald-700 transition"
-            title="Sair da conta"
-          >
-            <LogOut className="w-5 h-5 text-emerald-100" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Botão de Trocar o Tema */}
+            <button
+              onClick={toggleTheme}
+              className={`p-2 ${t.btnBgOut} rounded-full ${t.btnHoverOut} transition`}
+              title="Mudar Cores do Aplicativo"
+            >
+              <Palette className={`w-5 h-5 ${t.textLight}`} />
+            </button>
+            <button
+              onClick={handleLogout}
+              className={`p-2 ${t.btnBgOut} rounded-full ${t.btnHoverOut} transition`}
+              title="Sair da conta"
+            >
+              <LogOut className={`w-5 h-5 ${t.textLight}`} />
+            </button>
+          </div>
         </div>
 
         {/* Card de Resumo do Plantel */}
-        <div className="bg-emerald-700/50 border border-emerald-500/40 p-4 rounded-2xl flex flex-col gap-3 shadow-sm">
+        <div className={`${t.cardBg} border ${t.cardBorder} p-4 rounded-2xl flex flex-col gap-3 shadow-sm transition-colors duration-500`}>
           <div className="flex items-start gap-3">
             <div className="bg-white/10 p-3 rounded-xl mt-1">
               <BirdIcon className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-xs text-emerald-200 uppercase tracking-wider font-semibold">
+              <p className={`text-xs ${t.cardSubtitle} uppercase tracking-wider font-semibold`}>
                 Total no Plantel
               </p>
               <p className="text-2xl font-bold leading-tight text-white">
@@ -182,12 +213,12 @@ export default function DashboardPage() {
                 <Link
                   key={sp.id}
                   href={`/aves?species_id=${sp.id}`}
-                  className="flex items-center justify-between bg-emerald-800/40 hover:bg-emerald-800/60 border border-emerald-600/30 p-3 rounded-xl transition"
+                  className={`flex items-center justify-between ${t.listBg} ${t.listHover} border ${t.listBorder} p-3 rounded-xl transition-colors`}
                 >
-                  <span className="font-bold text-emerald-50 tracking-wide text-sm">
+                  <span className={`font-bold ${t.textLighter} tracking-wide text-sm`}>
                     {sp.count} {pluralize(sp.count, sp.name)}
                   </span>
-                  <ChevronRight className="w-4 h-4 text-emerald-300" />
+                  <ChevronRight className={`w-4 h-4 ${t.listIcon}`} />
                 </Link>
               ))}
             </div>
@@ -206,31 +237,25 @@ export default function DashboardPage() {
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             
             {/* --- LINHA 1 --- */}
-            <Link href="/novo" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-emerald-300 transition group">
-              <div className="bg-emerald-100 p-2.5 sm:p-3 rounded-xl text-emerald-600 group-hover:scale-110 transition-transform">
+            <Link href="/novo" className={`bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 ${t.hoverBorder} transition group`}>
+              <div className={`${t.primaryLight} p-2.5 sm:p-3 rounded-xl ${t.textPrimary} group-hover:scale-110 transition-transform`}>
                 <PlusCircle className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
-                Nova Ave
-              </span>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">Nova Ave</span>
             </Link>
 
             <Link href="/recintos" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-blue-300 transition group">
               <div className="bg-blue-100 p-2.5 sm:p-3 rounded-xl text-blue-600 group-hover:scale-110 transition-transform">
                 <Map className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
-                Recintos
-              </span>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">Recintos</span>
             </Link>
 
             <Link href="/especies" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-cyan-300 transition group">
               <div className="bg-cyan-100 p-2.5 sm:p-3 rounded-xl text-cyan-600 group-hover:scale-110 transition-transform">
                 <Feather className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
-                Espécies e Raças
-              </span>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">Espécies e Raças</span>
             </Link>
 
             {/* --- LINHA 2 --- */}
@@ -238,38 +263,29 @@ export default function DashboardPage() {
               <div className="bg-orange-100 p-2.5 sm:p-3 rounded-xl text-orange-600 group-hover:scale-110 transition-transform">
                 <Package className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
-                Estoque de Insumos
-              </span>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">Estoque de Insumos</span>
             </Link>
 
             <Link href="/contatos" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-purple-300 transition group">
               <div className="bg-purple-100 p-2.5 sm:p-3 rounded-xl text-purple-600 group-hover:scale-110 transition-transform">
                 <Users className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
-                Relacionamentos
-              </span>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">Relacionamentos</span>
             </Link>
 
             <Link href="/relatorios" className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-indigo-300 transition group">
               <div className="bg-indigo-100 p-2.5 sm:p-3 rounded-xl text-indigo-600 group-hover:scale-110 transition-transform">
                 <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
-                Relatórios e Balanço
-              </span>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">Relatórios e Balanço</span>
             </Link>
 
             {/* --- LINHA 3 --- */}
-            {/* O "col-start-2" centraliza este botão na grade de 3 colunas */}
             <Link href="/scanner" className="col-start-2 bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center gap-2 hover:border-gray-400 transition group">
               <div className="bg-gray-100 p-2.5 sm:p-3 rounded-xl text-gray-700 group-hover:scale-110 transition-transform">
                 <QrCode className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">
-                Escanear
-              </span>
+              <span className="text-[10px] sm:text-xs font-bold text-gray-800 leading-tight">Escanear</span>
             </Link>
             
           </div>
@@ -295,17 +311,17 @@ export default function DashboardPage() {
               placeholder="Novo lembrete (ex: Vacinar...)"
               value={newReminderText}
               onChange={(e) => setNewReminderText(e.target.value)}
-              className="flex-1 text-sm text-gray-900 font-medium border border-gray-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-emerald-600 outline-none bg-white"
+              className={`flex-1 text-sm text-gray-900 font-medium border border-gray-200 rounded-xl px-3 py-2.5 ${t.focusRing} outline-none bg-white transition-colors`}
             />
             <input
               type="date"
               value={newReminderDate}
               onChange={(e) => setNewReminderDate(e.target.value)}
-              className="text-xs text-gray-900 font-medium border border-gray-200 rounded-xl px-2 py-2.5 bg-white outline-none focus:ring-2 focus:ring-emerald-600"
+              className={`text-xs text-gray-900 font-medium border border-gray-200 rounded-xl px-2 py-2.5 bg-white outline-none ${t.focusRing} transition-colors`}
             />
             <button
               type="submit"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-sm"
+              className={`${t.primary} ${t.primaryDark} text-white px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-sm`}
             >
               +
             </button>
@@ -324,7 +340,7 @@ export default function DashboardPage() {
                 >
                   <button
                     onClick={() => handleCompleteReminder(rem.id)}
-                    className="text-gray-300 hover:text-emerald-600 transition"
+                    className={`text-gray-300 hover:${t.textPrimary} transition-colors`}
                   >
                     <CheckCircle2 className="w-6 h-6" />
                   </button>
